@@ -12,7 +12,7 @@ workflow IMPORT {
         database_params,
         top_up
     )
-    db_config   = INIT_PIPELINE.out.dbConfig.val
+    db_config = INIT_PIPELINE.out.dbConfig.val
 
     IMPORT_SEQUENCES(
         db_config['iprscan'],
