@@ -66,8 +66,10 @@ class IPM {
         String error = ""
         Map<String, Map> config = [:]
         databases.each {String db ->
-            if (!databaseConfig[db]["uri"] || !databaseConfig[db]["user"] || !databaseConfig[db]["password"]) {
-                error += "Missing or incomplete ${db} credentials\n"
+            if (!databaseConfig.containsKey(db)) {
+                error += "Missing or incomplete ${db} credentials in the conf file\n"
+            } else if (!databaseConfig[db]["uri"] || !databaseConfig[db]["user"] || !databaseConfig[db]["password"]) {
+                error += "Missing or incomplete ${db} credentials in the conf file\n"
             } else {
                 config[db] = [
                         "uri": databaseConfig[db]["uri"],

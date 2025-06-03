@@ -1,4 +1,5 @@
-include { INIT_PIPELINE } from "./init"
+include { INIT_PIPELINE    } from "./init"
+include { IMPORT_SEQUENCES } from "../../modules/sequences"
 
 workflow IMPORT {
     take:
@@ -9,6 +10,5 @@ workflow IMPORT {
         database_params
     )
     db_config   = INIT_PIPELINE.out.dbConfig.val
-
-    db_configc.view()
+    println "db_config $db_config"
 }
