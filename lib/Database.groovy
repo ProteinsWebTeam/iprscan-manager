@@ -52,6 +52,11 @@ class Database {
         )
     }
 
+    void configureProteinTable() {
+        this.sql.execute("GRANT SELECT ON UNIPARC.PROTEIN TO PUBLIC")
+        this.sql.execute("CREATE UNIQUE INDEX ON UNIPARC.PROTEIN (UPI)")
+    }
+
     List<String> iterProteins(String gt = null, String le = null, Closure rowHandler) {
         String sqlQuery = """
             SELECT ID, UPI, TIMESTAMP, USERSTAMP, CRC64, LEN, SEQ_SHORT, SEQ_LONG, MD5
@@ -69,16 +74,28 @@ class Database {
         }
         if (filters) {
             sqlQuery += " WHERE " + filters.join(" AND ")
-            System.out.println("FILTERs: ${filters}")
         }
-        System.out.println("params: ${params}")
-        System.out.println("sqlQuery = ${sqlQuery}")
         this.sql.eachRow(sqlQuery, params, rowHandler)
     }
 
-//    void insertProteins(List<String> records) {
-//        String insertQuery = """
-//
-//    """
-//    }
+    void insertProteins(List<String> records) {
+        String insertQuery = """
+            INSERT /* APPEND */ INTO UNIPARC.PROTEIN
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(insertQuery) { stmt ->
+            records.each { stmt.addBatch([
+                it.ID.toInteger(),
+                it.UPI,
+                it.TIMESTAMP,
+                it.USERSTAMP,
+                it.CRC64,
+                it.LEN.toInteger(),
+                it.SEQ_SHORT,
+                it.SEQ_LONG,
+                it.MD5
+            ]) }
+        }
+        this.sql.commit()
+    }
 }
