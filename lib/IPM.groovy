@@ -19,6 +19,10 @@ class IPM {
                     description: "[IMPORT] Maximum sequence UPI to import - only used by the 'import' method."
             ],
             [
+                    name: "analyses",
+                    description: "[CLEAN] IDs of analyses to clean (default: all) - only used by the 'clean' method."
+            ],
+            [
                     name: "help",
                     description: "Print the help message and exit."
             ],

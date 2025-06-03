@@ -25,7 +25,10 @@ workflow {
                 params.interproscan
             )
         } else if (method == "clean") {
-            CLEAN()
+            CLEAN(
+                params.databases,
+                params.analyses
+            )
         } else if (method == "import") {
             IMPORT(
                 params.databases,
@@ -39,7 +42,7 @@ workflow {
 
 workflow.onComplete = {
     if (workflow.success) {
-        println "IPM methods ${params.method} completed successfully."
+        println "IPM methods ${params.methods} completed successfully."
         println "Duration: ${workflow.duration}"
     }
 }
