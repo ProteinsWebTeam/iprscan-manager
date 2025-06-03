@@ -26,7 +26,7 @@ process CLEAN_OBSOLETE_DATA {
     def jobCount = null
     tables.each { table ->
         table = table.toUpperCase()
-        partitions = db.getPartitions("IPRSCAN", table) // e.g. [[name:HAMAP2025_01, position:1, value:130, column:ANALYSIS_ID], [name:OTHER, position:2, value:DEFAULT, column:ANALYSIS_ID]]
+        def partitions = db.getPartitions("IPRSCAN", table)
 
         partitions.each { part ->
             if (part.value == "DEFAULT") {
@@ -38,23 +38,20 @@ process CLEAN_OBSOLETE_DATA {
             if (analysis_ids && !analysis_ids.contains(analysisId)) {
                 return
             } else if (!analysis2maxUpi.containsKey(analysisId)) {
-                // obsolete analysis - remove the data
                 actions << [
-                   String.format("  - %-30s: delete data", part['name']),
+                   String.format("  - analysis ID %s, partition %-20s: delete data", analysisId, part['name']),
                    [[ String.format("ALTER TABLE %s DROP PARTITION %s", table, part['name']), [] ]]
                ]
             } else if (!table2analyses[table].contains(analysisId)) {
-                // obsolete analysis - remove the data
                 actions << [
-                   String.format("  - %-30s: delete data", part['name']),
+                   String.format("  - analysis ID %s, partition %-20s: delete data", analysisId, part['name']),
                    [[ String.format("ALTER TABLE %s DROP PARTITION %s", table, part['name']), [] ]]
                ]
             } else if (maxUpi) {
                 jobCount = db.getJobCount(analysisId, maxUpi)
                 if (jobCount > 0) {
-                    // Delete jobs after the max UPI
                     actions << [
-                        String.format("  - %-30s: delete jobs/data > %s", part['name'], maxUpi),
+                        String.format("  - analysis ID %s, partition %-20s: delete jobs/data > %s", analysisId, part['name'], maxUpi),
                         [
                             [
                                 """
@@ -75,9 +72,8 @@ process CLEAN_OBSOLETE_DATA {
                     ]
                 }
             } else {
-                // no max UPI: remove the data
                 actions << [
-                    String.format("  - %-30s: delete jobs/data", part['name']),
+                    String.format("  - analysis ID %s, partition %-20s: delete jobs/data", analysisId, part['name']),
                     [
                         [
                             "DELETE FROM IPRSCAN.ANALYSIS_JOBS WHERE ANALYSIS_ID = ?",
@@ -110,8 +106,9 @@ process CLEAN_OBSOLETE_DATA {
         } else {
             println "Canceled"
         }
+    } else {
+        println "No obsolete data to clean"
     }
 
     db.close()
-
 }
