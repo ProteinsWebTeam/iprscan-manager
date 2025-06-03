@@ -10,10 +10,14 @@ workflow INIT_PIPELINE {
         exit 1
     }
 
+    analysisIds = analyses
     if (!analyses) {
         log.warn "IPM will clean obsolete data for ALL analyses listed in the IprScan database."
+        analysisIds = []
     }
+
 
     emit:
     dbConfig
+    analysisIds
 }

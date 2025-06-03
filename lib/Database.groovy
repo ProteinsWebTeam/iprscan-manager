@@ -140,4 +140,11 @@ class Database {
 
         return partitions.values().sort { it.position }
     }
+
+    Integer getJobCount(Integer analysis_id, String max_upi) {
+        return this.sql.execute(
+            "SELECT COUNT (*) FROM IPRSCAN.ANALYSIS_JOBS WHERE ANALYSIS_ID = ? AND UPI_FROM > ?",
+            [analysis_id, max_upi]
+        )[0]
+    }
 }

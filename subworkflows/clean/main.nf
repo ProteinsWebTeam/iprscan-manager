@@ -11,10 +11,11 @@ workflow CLEAN {
         database_params,
         analyses
     )
-    db_config = INIT_PIPELINE.out.dbConfig.val
+    db_config    = INIT_PIPELINE.out.dbConfig.val
+    analysis_ids = INIT_PIPELINE.out.analysisIds.val
 
     CLEAN_OBSOLETE_DATA(
         db_config['iprscan'],
-        analyses
+        analysis_ids
     )
 }
