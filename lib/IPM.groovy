@@ -12,7 +12,11 @@ class IPM {
             ],
             [
                     name: "top-up",
-                    description: "Import new sequences only - only used by the 'import' method."
+                    description: "[IMPORT] Import new sequences only - only used by the 'import' method."
+            ],
+            [
+                    name: "max-upi",
+                    description: "[IMPORT] Maximum sequence UPI to import - only used by the 'import' method."
             ],
             [
                     name: "help",
@@ -25,6 +29,10 @@ class IPM {
             */
             [
                     name: "databases",
+                    description: null
+            ],
+            [
+                    name: "interproscan",
                     description: null
             ]
     ]

@@ -29,7 +29,8 @@ workflow {
         } else if (method == "import") {
             IMPORT(
                 params.databases,
-                params.topUp
+                params.topUp,
+                params.maxUpi
             )
         }
     }

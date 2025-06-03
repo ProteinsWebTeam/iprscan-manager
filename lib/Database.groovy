@@ -33,19 +33,52 @@ class Database {
     }
 
     void wipeProteinTable() {
-        """
-        CREATE TABLE UNIPARC.PROTEIN
-        (
-            ID NUMBER(15) NOT NULL,
-            UPI CHAR(13) NOT NULL,
-            TIMESTAMP DATE NOT NULL,
-            USERSTAMP VARCHAR2(30) NOT NULL,
-            CRC64 CHAR(16) NOT NULL,
-            LEN NUMBER(6) NOT NULL,
-            SEQ_SHORT VARCHAR2(4000),
-            SEQ_LONG CLOB,
-            MD5 VARCHAR2(32) NOT NULL
-        ) NOLOGGING
-        """
+        this.sql.execute("DROP TABLE UNIPARC.PROTEIN PURGE")
+        this.sql.execute(
+            """
+            CREATE TABLE UNIPARC.PROTEIN
+            (
+                ID NUMBER(15) NOT NULL,
+                UPI CHAR(13) NOT NULL,
+                TIMESTAMP DATE NOT NULL,
+                USERSTAMP VARCHAR2(30) NOT NULL,
+                CRC64 CHAR(16) NOT NULL,
+                LEN NUMBER(6) NOT NULL,
+                SEQ_SHORT VARCHAR2(4000),
+                SEQ_LONG CLOB,
+                MD5 VARCHAR2(32) NOT NULL
+            ) NOLOGGING
+            """
+        )
     }
+
+    List<String> iterProteins(String gt = null, String le = null, Closure rowHandler) {
+        String sqlQuery = """
+            SELECT ID, UPI, TIMESTAMP, USERSTAMP, CRC64, LEN, SEQ_SHORT, SEQ_LONG, MD5
+            FROM UNIPARC.PROTEIN
+        """
+        def filters = []
+        def params = [:]
+        if (gt) {
+            filters << "UPI > :gt"
+            params.gt = gt
+        }
+        if (le) {
+            filters << "UPI <= :le"
+            params.le = le
+        }
+        if (filters) {
+            sqlQuery += " WHERE " + filters.join(" AND ")
+            System.out.println("FILTERs: ${filters}")
+        }
+        System.out.println("params: ${params}")
+        System.out.println("sqlQuery = ${sqlQuery}")
+        this.sql.eachRow(sqlQuery, params, rowHandler)
+    }
+
+//    void insertProteins(List<String> records) {
+//        String insertQuery = """
+//
+//    """
+//    }
 }
