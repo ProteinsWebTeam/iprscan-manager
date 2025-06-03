@@ -111,4 +111,33 @@ class Database {
         """
         return this.sql.rows(query)
     }
+
+    List<Map> getPartitions(schema, table) {
+        String query ="""
+            SELECT P.PARTITION_NAME, P.PARTITION_POSITION, P.HIGH_VALUE,
+            K.COLUMN_NAME, K.COLUMN_POSITION
+            FROM ALL_TAB_PARTITIONS P
+            INNER JOIN ALL_PART_KEY_COLUMNS K
+            ON P.TABLE_OWNER = K.OWNER 
+            AND P.TABLE_NAME = K.NAME
+            WHERE P.TABLE_OWNER = ? 
+            AND P.TABLE_NAME = ?
+        """
+        Map<String, Map> partitions = [:]
+
+        this.sql.eachRow(query, [schema.toUpperCase(), table.toUpperCase()]) { row ->
+            String partName = row.PARTITION_NAME
+            if (partitions.containsKey(partName)) {
+                throw new Exception("Multi-column partitioning keys are not supported")
+            }
+            partitions[partName] = [
+                    name    : partName,
+                    position: row.PARTITION_POSITION,
+                    value   : row.HIGH_VALUE,
+                    column  : row.COLUMN_NAME
+            ]
+        }
+
+        return partitions.values().sort { it.position }
+    }
 }
