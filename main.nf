@@ -6,31 +6,34 @@ workflow {
     println "# ${workflow.manifest.name} ${workflow.manifest.version}"
     println "# ${workflow.manifest.description}\n"
 
-    def method = params.method.toLowerCase()
-
-    if (!method) {
-        log.error "Please specify a method (--method): 'analyse', 'clean' or 'import'"
-        exit 1
-    } else if (method == "analyse") {
-        ANALYSE(
-            params.databases,
-            params.interproscan
-        )
-    } else if (method == "clean") {
-        CLEAN()
-    } else if (method == "import") {
-        IMPORT(
-            params.databases
-        )
-    } else {
-        log.error "Unrecognised method: '$method'. Expected 'analyse', 'clean', or 'import'"
+    IPM.validateParams(params, log)
+    (methods, error) = IPM.validateMethods(params.method)
+    if (error) {
+        log.error error
         exit 1
     }
+
+    for (method in methods) {
+        if (method == "analyse") {
+            ANALYSE(
+                params.databases,
+                params.interproscan
+            )
+        } else if (method == "clean") {
+            CLEAN()
+        } else if (method == "import") {
+            IMPORT(
+                params.databases,
+                params.topUp
+            )
+        }
+    }
+
 }
 
 workflow.onComplete = {
     if (workflow.success) {
-        println "IPM method ${params.method} completed successfully."
+        println "IPM methods ${params.method} completed successfully."
         println "Duration: ${workflow.duration}"
     }
 }
