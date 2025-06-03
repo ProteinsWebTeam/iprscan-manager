@@ -1,4 +1,5 @@
-include { INIT_PIPELINE } from "./init"
+include { INIT_PIPELINE       } from "./init"
+include { CLEAN_OBSOLETE_DATA } from "../../modules/clean"
 
 workflow CLEAN {
     take:
@@ -11,5 +12,9 @@ workflow CLEAN {
         analyses
     )
     db_config = INIT_PIPELINE.out.dbConfig.val
-    println "Workflow placeholder -- $db_config"
+
+    CLEAN_OBSOLETE_DATA(
+        db_config['iprscan'],
+        analyses
+    )
 }

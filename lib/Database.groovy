@@ -98,4 +98,17 @@ class Database {
         }
         this.sql.commit()
     }
+
+    List<String> getAnalyses() {
+        def query = """
+            SELECT A.MAX_UPI, A.I6_DIR, A.INTERPRO_VERSION, A.NAME,
+                T.MATCH_TABLE, T.SITE_TABLE,
+                A.ID, A.VERSION
+            FROM ANALYSIS_I6 A
+            INNER JOIN ANALYSIS_TABLES T
+                ON LOWER(A.NAME) = LOWER(T.NAME)
+            WHERE A.ACTIVE = 'Y'
+        """
+        return this.sql.rows(query)
+    }
 }

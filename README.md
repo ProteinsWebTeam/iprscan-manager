@@ -64,7 +64,7 @@ nextflow run main.nf -c conf/imp.conf --methods analyse
 
 ### Clean
 
-The `CLEAN` subworkflow deletes obselete data.
+The `CLEAN` subworkflow deletes obsolete data for analyses listed as active `'Y'` in the IprScan database.
 
 There is one optional argument:
 1. `--analyses` - IDs od analyses to clean (default: all)
