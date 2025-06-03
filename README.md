@@ -1,2 +1,63 @@
-# iprscan-manager
-InterProScan Produciton Manager - A Nextflow pipeline coordinating that calculation, import and cleaning of InterProScan matches for the InterPro database.
+# InterProScan Production Manager (IPM)
+
+A Nextflow pipeline to coordinate the calculation, import and cleaning of InterProScan matches for the InterPro database.
+
+## Getting started
+
+### Requirements:
+
+* Nextflow >= 24.10.4
+
+### Installation:
+
+```bash
+git clone https://github.com/ProteinsWebTeam/iprscan-manager.git
+```
+
+## Configuration
+
+The IPM pipeline relies on one configuration file. A template can be found in
+`./conf/ipm.conf`.
+
+> [!WARNING]  
+> The InterProScan6 work directory will be extremely large! Make sure to point
+> the `interproscan.runtime.workdir` field to a suitable location.
+
+* **databases** - _configure database connections_
+    * **iprscan**: uri (`@Host:Port/Service`), username and password for the `iprscan` user in the InterProScan [IPPRO] database
+    * **uniprot**: uri (`@Host:Port/Service`), username and password for the UniParc read-only database
+* **interproscan** - _configure how InterProScan6 is run_
+    * **runtime**
+        * **executable**: `"ebi-pf-team/interproscan6"` or path to a local InterProScan6 installation `main.nf` file
+        * **executor**: Run InterProScan6 locally (`local`) or on SLURM (`slurm`)
+        * **container**: Container runtime to use (e.g. `'docker'` or `'baremetal'` when the latter is supported)
+        * **workdir**: Path to build the workdir. This directory can become extremely large!
+    * **sbatch**
+        * **enabled**: Boolean. Submit InterProScan6 as a new job to the cluster, else InterProScan6 will run within the IPM cluster job
+        * **nodes**: Nodes to be assigned to the InterProScan6 cluster job
+        * **cpus**: CPUs to be assigned to the InterProScan6 cluster job
+        * **memory**: Memory to be assigned to the InterProScan6 cluster job
+        * **time**: Time to be assigned to the InterProScan6 cluster job
+        * **jobName**: Name to be assigned to the InterProScan6 cluster job
+        * **jobLog**: Name of the log file for the InterProScan6 cluster job - leave as `null` or `""` to not write a log file
+        * **jobErr**: Name of the error file for the InterProScan6 cluster job - leave as `null` or `""` to not write an error file
+
+## Usage
+
+### Analyse
+
+The `ANALYSE` subworkflow coordinates running InterProScan for every "active" analysis in the `ISPRO.ANALYSIS` table,
+and persists all results in the `ISPRO` database.
+
+Two arguments are required:
+1. `-c` - Path to the `imp.conf` file
+2. `--method` - The name of the subworkflow (case-insensitive)
+
+For example:
+```bash
+nextflow run main.nf -c conf/imp.conf --method analyse
+```
+
+### Clean
+
+### Import
