@@ -4,7 +4,7 @@ workflow INIT_PIPELINE {
 
     mains:
     // validate the database configurations
-    (dbConfig, error) = IPM.valdidateDbConfig(database_params, ["iprscan", "uniprot"])
+    (dbConfig, error) = IPM.valdidateDbConfig(database_params, ["iprscan", "uniparc"])
     if (error) {
         log.error error
         exit 1
