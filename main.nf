@@ -6,6 +6,11 @@ workflow {
     println "# ${workflow.manifest.name} ${workflow.manifest.version}"
     println "# ${workflow.manifest.description}\n"
 
+    if (params.keySet().any { it.equalsIgnoreCase("help") }) {
+        IPM.printHelp()
+        exit 0
+    }
+
     IPM.validateParams(params, log)
     (methods, error) = IPM.validateMethods(params.method)
     if (error) {

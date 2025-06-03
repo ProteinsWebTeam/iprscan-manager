@@ -12,7 +12,20 @@ class IPM {
             ],
             [
                     name: "top-up",
-                    description: "Import new sequences only"
+                    description: "Import new sequences only - only used by the 'import' method."
+            ],
+            [
+                    name: "help",
+                    description: "Print the help message and exit."
+            ],
+            /*
+            If an option's description is set to null, it will be hidden from the help message
+            and no "Unrecognised option" warning will be produced.
+            Use this for params defined in config files that should not be available on the command line
+            */
+            [
+                    name: "databases",
+                    description: null
             ]
     ]
 
@@ -26,7 +39,22 @@ class IPM {
         result << "    --method import: Import UniParc sequences into IPPRO\n"
         result << "    --method analyse: Analyse UniParc sequences in IPPRO using InterProScan\n"
         result << "    --method clean: Delete obsolete data\n"
+
+        result << "\nOptional parameters:\n"
+        this.PARAMS.findAll{ !it.required && it.description }.each { param ->
+            result << this.formatOption(param) << "\n"
+        }
+
         print result.toString()
+    }
+
+    static String formatOption(option) {
+        def text = "  --${option.name}"
+        if (option.metavar) {
+            text += " ${option.metavar}"
+        }
+
+        return text.padRight(40) + ": ${option.description}"
     }
 
     static void validateParams(params, log) {
@@ -131,6 +159,9 @@ class IPM {
     }
 
     static valdidateDbConfig(Map databaseConfig, List<String> databases) {
+        if (!databaseConfig) {
+            return [null, "No database configurations provided.\nTip: Use the -c option to provide the path to a config file"]
+        }
         String error = ""
         Map<String, Map> config = [:]
         databases.each {String db ->
