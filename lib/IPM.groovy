@@ -5,7 +5,7 @@ class IPM {
 
     static final def PARAMS = [
             [
-                    name: "method",
+                    name: "methods",
                     required: true,
                     metavar: "<METHODS>",
                     dscription: "Methods to be run as a comma separated list. Choose from: 'import', 'analyse', and 'clean'"
@@ -43,10 +43,10 @@ class IPM {
         result << "Usage: nextflow run main.nf -c <CONF> --method <METHOD>\n"
         result << "Mandatory parameters:\n"
         result << "-c <CONF>: config file with database uri and InterProScan configuration\n"
-        result << "--method <METHOD>: Methods to be run as a comma separated list. Choose from:\n"
-        result << "    --method import: Import UniParc sequences into IPPRO\n"
-        result << "    --method analyse: Analyse UniParc sequences in IPPRO using InterProScan\n"
-        result << "    --method clean: Delete obsolete data\n"
+        result << "--methods <METHOD>: Methods to be run as a comma separated list. Choose from:\n"
+        result << "    --methods import: Import UniParc sequences into IPPRO\n"
+        result << "    --methods analyse: Analyse UniParc sequences in IPPRO using InterProScan\n"
+        result << "    --methods clean: Delete obsolete data\n"
 
         result << "\nOptional parameters:\n"
         this.PARAMS.findAll{ !it.required && it.description }.each { param ->

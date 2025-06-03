@@ -12,7 +12,7 @@ workflow {
     }
 
     IPM.validateParams(params, log)
-    (methods, error) = IPM.validateMethods(params.method)
+    (methods, error) = IPM.validateMethods(params.methods)
     if (error) {
         log.error error
         exit 1
