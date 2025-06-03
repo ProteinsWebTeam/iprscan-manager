@@ -19,8 +19,6 @@ process CLEAN_OBSOLETE_DATA {
         }
     }
 
-    println "table2analyses: ${table2analyses}"
-
     def tables = table2analyses.keySet().sort()
     def actions = []
     def analysisId = null
@@ -92,8 +90,28 @@ process CLEAN_OBSOLETE_DATA {
                     ]
                 ]
             }
-            println "table: $table --> partitions: $partitions"
         } // end of partitions.each
     } // end of tables.each
-    println "actions: $actions"
+
+    if (actions) {
+        println "The following actions will be performed:"
+        actions.each { desc, queries ->
+            println(desc)
+        }
+
+        println "proceed? [y/N]"
+        def response = System.console().readLine()?.toLowerCase()?.trim()
+        if (response == "y") {
+            actions.each { desc, queries ->
+                queries.each { sql, params ->
+                    db.query(sql, params)
+                }
+            }
+        } else {
+            println "Canceled"
+        }
+    }
+
+    db.close()
+
 }

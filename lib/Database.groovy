@@ -21,6 +21,10 @@ class Database {
         }
     }
 
+    void query(String query, List<String> params) {
+        this.sql.execute(query, params)
+    }
+
     void close() {
         if (this.sql) {
             this.sql.close()

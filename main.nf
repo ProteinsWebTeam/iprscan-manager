@@ -42,7 +42,7 @@ workflow {
 
 workflow.onComplete = {
     if (workflow.success) {
-        println "IPM methods ${params.methods} completed successfully."
+        println "IPM methods '${params.methods}' completed successfully."
         println "Duration: ${workflow.duration}"
     }
 }
