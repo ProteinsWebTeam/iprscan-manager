@@ -24,7 +24,8 @@ The IPM pipeline relies on one configuration file. A template can be found in
 > the `interproscan.runtime.workdir` field to a suitable location.
 
 * **databases** - _configure database connections_
-    * **iprscan**: uri (`@Host:Port/Service`), username and password for the `iprscan` user in the InterProScan [IPPRO] database
+    * **iprscanIprscan**: uri (`@Host:Port/Service`), username and password for the `iprscan` user in the InterProScan [ISPRO] database
+    * **iprscanUniParc**: uri (`@Host:Port/Service`), username and password for the `uniparc` user in the InterProScan [ISPRO] database
     * **uniprot**: uri (`@Host:Port/Service`), username and password for the UniParc read-only database
 * **interproscan** - _configure how InterProScan6 is run_
     * **runtime**
@@ -67,7 +68,7 @@ nextflow run main.nf -c conf/imp.conf --methods analyse
 The `CLEAN` subworkflow deletes obsolete data for analyses listed as active `'Y'` in the IprScan database.
 
 There is one optional argument:
-1. `--analyses` - IDs od analyses to clean (default: all)
+1. `--analyses` - IDs of analyses to clean (default: all)
 
 For example:
 ```bash

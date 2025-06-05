@@ -19,7 +19,7 @@ workflow ANALYSE {
     work_dir    = INIT_PIPELINE.out.workDir.val
     db_config   = INIT_PIPELINE.out.dbConfig.val
 
-    analyses    = GET_ANALYSES(db_config.iprscan)
+    analyses    = GET_ANALYSES(db_config.iprscanIprscan)
     sequences   = GET_SEQUENCES(db_config.uniprot, analyses)
     jobs = sequences.flatten()  // gather the groovy objects into a channel
 
