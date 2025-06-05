@@ -21,7 +21,6 @@ process IMPORT_SEQUENCES {
 
     // for testing
     currentMaxUpi = "UPI003C6BD65E"
-    println "Current highest UPI: ${currentMaxUpi ?: 'N/A'}"
 
     uniparc_db.iterProteins(currentMaxUpi, max_upi) { rec ->
         records << rec
