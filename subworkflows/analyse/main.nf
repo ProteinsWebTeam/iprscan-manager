@@ -21,7 +21,7 @@ workflow ANALYSE {
     db_config   = INIT_PIPELINE.out.dbConfig.val
 
     analyses    = GET_ANALYSES(db_config.iprscanIprscan)
-    sequences   = GET_SEQUENCES(db_config.uniprot, analyses)
+    sequences   = GET_SEQUENCES(db_config.uniparc, analyses)
     jobs = sequences.flatten()  // gather the groovy objects into a channel
 
     RUN_INTERPROSCAN(
@@ -34,6 +34,6 @@ workflow ANALYSE {
     )
     matches           = RUN_INTERPROSCAN.out
     separated_matches = SEPARATE_MEMBER_DBS(matches)
-    prepared_matches  = REBUILD_INDEXES(separated_matches, db_config.iprscan)
-    PERSIST_MATCHES(separated_matches, db_config.iprscan)
+    prepared_matches  = REBUILD_INDEXES(separated_matches, db_config.iprscanIprscan)
+    PERSIST_MATCHES(separated_matches, db_config.iprscanIprscan)
 }

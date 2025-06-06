@@ -145,6 +145,35 @@ class Database {
         return partitions.values().sort { it.position }
     }
 
+    void writeFasta(String upi_from, String upi_to, String fasta) {
+        // Build a fasta file of protein seqs. Batch for speed.
+        def writer = new File(fasta.toString()).newWriter()
+        Integer offset = 0
+        Integer batchSize = 1000
+        String query = """
+        SELECT UPI, SEQ_SHORT, SEQ_LONG
+        FROM (
+            SELECT UPI, SEQ_SHORT, SEQ_LONG, ROW_NUMBER() OVER (ORDER BY UPI) AS row_num
+            FROM UNIPARC.PROTEIN
+            WHERE UPI BETWEEN ? AND ?
+        ) WHERE row_num BETWEEN ? AND ?
+        """
+
+        def batch = this.sql.rows(query, [upi_from, upi_to, offset + 1, offset + batchSize])
+        for (row: batch) {
+            def upi = row[0]
+            def seq = row[1] ?: row[2]
+            seq = seq.toString()
+            writer.writeLine(">${upi}")
+            for (int i = 0; i < seq.length(); i += 60) {
+                int end = Math.min(i + 60, seq.length())
+                writer.writeLine(seq.substring(i, end))
+            }
+        }
+
+        writer.close()
+    }
+
     Integer getJobCount(Integer analysis_id, String max_upi) {
         return this.sql.execute(
             "SELECT COUNT (*) FROM IPRSCAN.ANALYSIS_JOBS WHERE ANALYSIS_ID = ? AND UPI_FROM > ?",
