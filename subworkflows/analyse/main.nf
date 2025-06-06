@@ -1,8 +1,9 @@
-include { INIT_PIPELINE                        } from "./init"
-include { GET_ANALYSES; GET_SEQUENCES          } from "../../modules/prepare/jobs"
-include { RUN_INTERPROSCAN                     } from "../../modules/interproscan"
-include { SEPARATE_MEMBER_DBS; REBUILD_INDEXES } from "../../modules/prepare/matches"
-include { PERSIST_MATCHES                      } from "../../modules/persist_matches"
+include { INIT_PIPELINE               } from "./init"
+include { GET_ANALYSES; GET_SEQUENCES } from "../../modules/prepare/jobs"
+include { RUN_INTERPROSCAN            } from "../../modules/interproscan"
+include { SEPARATE_MEMBER_DBS         } from "../../modules/prepare/matches"
+include { REBUILD_INDEXES             } from "../../modules/clean"
+include { PERSIST_MATCHES             } from "../../modules/persist_matches"
 
 workflow ANALYSE {
     take:
