@@ -6,6 +6,7 @@ process RUN_INTERPROSCAN {
     val work_dir
     val max_workers
     val sbatch_params
+    val iprscan_config
 
     output:
     tuple val(job), path("*.json")
@@ -15,6 +16,7 @@ process RUN_INTERPROSCAN {
 
     def profileArgs = profile ? "-profile ${profile}" : ""
     def maxWorkers = max_workers ? "--max-workers ${max_workers}" : ""
+    def configPath = iprscan_config ? "-c ${iprscan_config}" : ""
     def applications = job.applications.keySet().collect { it.replace(" ", "-").toLowerCase() }.join(',')
     def nfCmd = """
 nextflow run ${iprscan_exe} \
@@ -26,7 +28,7 @@ nextflow run ${iprscan_exe} \
     --applications ${applications} \
     --datadir ${job.dataDir} \
     -work-dir ${work_dir} \
-    ${profileArgs} ${maxWorkers}
+    ${profileArgs} ${maxWorkers} ${configPath}
 """
 
     if (sbatch_params.enabled) {

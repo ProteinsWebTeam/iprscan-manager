@@ -39,9 +39,17 @@ workflow INIT_PIPELINE {
         exit 1
     }
 
+    // [5] Validate the iprscan config file is one is specified
+    (iprscanConfig, error) = IPM.validateConfig(interproscan_params.runtime.config)
+    if (error) {
+        log.error error
+        exit 1
+    }
+
     emit:
     iprscan
     profile
     workDir
     dbConfig
+    iprscanConfig
 }

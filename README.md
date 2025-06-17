@@ -33,6 +33,7 @@ The IPM pipeline relies on one configuration file. A template can be found in
         * **executor**: Run InterProScan6 locally (`local`) or on SLURM (`slurm`)
         * **container**: Container runtime to use (e.g. `'docker'` or `'baremetal'` when the latter is supported)
         * **workdir**: Path to build the workdir. This directory can become extremely large!
+        * **config**: [Optional] Path to an Iprscan 6 config file. This needs to be used when running liscened software, else iprscan won't know where to find the SignalP, Phobius and DeepTMHMM databases
     * **sbatch**
         * **enabled**: Boolean. Submit InterProScan6 as a new job to the cluster, else InterProScan6 will run within the IPM cluster job
         * **nodes**: Nodes to be assigned to the InterProScan6 cluster job
