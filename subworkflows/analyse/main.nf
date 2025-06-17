@@ -31,7 +31,7 @@ workflow ANALYSE {
         profile,
         work_dir,
         interproscan_params.runtime.maxWorkers,
-        interproscan_params.sbatch
+        interproscan_params.sbatch,
         iprscan_config
     )
     matches           = RUN_INTERPROSCAN.out
