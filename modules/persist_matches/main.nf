@@ -525,7 +525,7 @@ def persistSignalp(Map analysis_data, Database db, ObjectMapper mapper) {
                 location["start"].toInteger(),
                 location["end"].toInteger(),
                 ftmFragments(location["location-fragments"]),
-                new java.math.BigDecimal(location["score"].toString()).toPlainString()
+                new java.math.BigDecimal(location["score"].toString()).toPlainString() // Why is this a big decimal???
             ]
         }
     }
