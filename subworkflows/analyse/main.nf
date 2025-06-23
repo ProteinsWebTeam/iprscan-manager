@@ -22,7 +22,7 @@ workflow ANALYSE {
     iprscan_config = INIT_PIPELINE.out.iprscanConfig.val
 
     analyses    = GET_ANALYSES(db_config.iprscanIprscan)
-    sequences   = GET_SEQUENCES(db_config.uniparc, analyses)
+    sequences   = GET_SEQUENCES(db_config.iprscanIprscan, analyses)
     jobs = sequences.flatten()  // gather the groovy objects into a channel
 
     RUN_INTERPROSCAN(
