@@ -28,6 +28,10 @@ process SEPARATE_MEMBER_DBS {
         def upi = result.get("xref")[0].get("id").asText()
         result.get("matches").each { match ->
             def library = match.get("signature").get("signatureLibraryRelease").get("library").asText().toLowerCase()
+            if (library == "signalp") {
+                library = (match.get("model-ac").asText().split("_")[-1] == "other") ? "signalp_prok" : "signalp_euk"
+            }
+
             if (!outputFiles.containsKey(library)) {
                 def filePath = task.workDir.resolve("${library}.json").toString()
                 def file = new File(filePath)
