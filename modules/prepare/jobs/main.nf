@@ -19,7 +19,7 @@ process GET_ANALYSES {
 
     Random random = new Random()
 
-    analyses = [:] // Group the analyses -> [ (maxUpi, dataDir, interproVersion): IprscanJob]
+    analyses = [:]
     def analysis_rows = db.getAnalyses()
     for (row: analysis_rows) {
         (maxUpi, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion) = row
@@ -35,16 +35,16 @@ process GET_ANALYSES {
 process GET_SEQUENCES {
     // Get sequences to analyse. Return a list of IprscanJobs
     input:
-    val uniprot_conf
+    val iprscan_conf
     val analyses
 
     output:
     val jobs
 
     exec:
-    def uri = uniprot_conf.uri
-    def user = uniprot_conf.user
-    def pswd = uniprot_conf.password
+    def uri = iprscan_conf.uri
+    def user = iprscan_conf.user
+    def pswd = iprscan_conf.password
     Database db = new Database(uri, user, pswd)
 
     // for each UPI range (from - to) build a FASTA file of the protein sequences

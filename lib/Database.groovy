@@ -1,4 +1,6 @@
+import oracle.sql.CLOB
 import groovy.sql.Sql
+
 
 class Database {
     private String uri
@@ -170,15 +172,43 @@ class Database {
         for (row: batch) {
             def upi = row[0]
             def seq = row[1] ?: row[2]
-            seq = seq.toString()
-            writer.writeLine(">${upi}")
-            for (int i = 0; i < seq.length(); i += 60) {
-                int end = Math.min(i + 60, seq.length())
-                writer.writeLine(seq.substring(i, end))
+
+            // Convert Oracle CLOB to String if necessary - needed for very long seqs
+            if (seq instanceof CLOB) {
+                seq = seq.getSubString(1, (int) seq.length())
+            } else {
+                seq = seq.toString()
+            }
+
+            if (seq) {
+                writer.writeLine(">${upi}")
+                for (int i = 0; i < seq.length(); i += 60) {
+                    int end = Math.min(i + 60, seq.length())
+                    writer.writeLine(seq.substring(i, end))
+                }
             }
         }
 
         writer.close()
+    }
+
+    List<String> getIndexStatuses(String owner, String table) {
+        def query = """SELECT I.INDEX_NAME, I.STATUS
+            FROM ALL_INDEXES I
+            INNER JOIN ALL_IND_COLUMNS IC
+              ON I.OWNER = IC.INDEX_OWNER
+              AND I.INDEX_NAME = IC.INDEX_NAME
+              AND I.TABLE_NAME = IC.TABLE_NAME
+            WHERE I.TABLE_OWNER = ?
+            AND I.TABLE_NAME = ?
+            ORDER BY I.INDEX_NAME, IC.COLUMN_POSITION
+        """
+        return this.sql.rows(query, [owner, table])
+    }
+
+    void rebuildIndex(String name) {
+        def query = "ALTER INDEX" + name.toString() + "REBUILD"
+        this.sql.execute(query)
     }
 
     void persistDefaultMatches(values, matchTable) {
