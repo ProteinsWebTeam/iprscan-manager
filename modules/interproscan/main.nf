@@ -22,7 +22,7 @@ process RUN_INTERPROSCAN {
 nextflow run ${iprscan_exe} \
     --skip-interpro \
     --formats json \
-    --offline \
+    --no-matches-api \
     --interpro ${job.interproVersion} \
     --input ${job.fasta} \
     --applications ${applications} \
