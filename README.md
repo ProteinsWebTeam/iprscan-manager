@@ -52,6 +52,12 @@ Two arguments are required:
 1. `-c` - Path to the `imp.conf` file
 2. `--methods` - The name of the subworkflows (case-insensitive) as a comma separated list to run
 
+### Import
+
+The `IMPORT` subworkflow coordinates import protein sequences from UniProt into the InterProScan database.
+
+...
+
 ### Analyse
 
 The `ANALYSE` subworkflow coordinates running InterProScan for every "active" analysis in the `ISPRO.ANALYSIS` table,
@@ -75,5 +81,3 @@ For example:
 ```bash
 nextflow run main.nf -c conf/imp.conf --methods clean
 ```
-
-### Import

@@ -1,5 +1,4 @@
 import java.security.MessageDigest
-import java.util.Random
 
 
 process GET_ANALYSES {
@@ -17,16 +16,13 @@ process GET_ANALYSES {
     def pswd = iprscan_conf.password
     Database db = new Database(uri, user, pswd)
 
-    Random random = new Random()
-
     analyses = [:]
     def analysis_rows = db.getAnalyses()
     for (row: analysis_rows) {
         (maxUpi, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion) = row
         key = [maxUpi, dataDir, interproVersion]
         analyses[key] = analyses.get(key, new IprscanJob(maxUpi, dataDir, interproVersion.toString()))
-        randomisedAnalysisId = analysisId.toInteger() + random.nextInt(100)  // just for dev, so I don't need to worry about unique constraints being violated
-        analyses[key].addApplication(dbName, randomisedAnalysisId, dbVersion, matchTable, siteTable)
+        analyses[key].addApplication(dbName, analysisId.toInteger(), dbVersion, matchTable, siteTable)
     }
     db.close()
 }
