@@ -38,6 +38,9 @@ class Database {
 
     void wipeProteinTable() {
         this.sql.execute("DROP TABLE UNIPARC.PROTEIN PURGE")
+    }
+
+    void buildProteinTable() {
         this.sql.execute(
             """
             CREATE TABLE UNIPARC.PROTEIN
@@ -54,6 +57,7 @@ class Database {
             ) NOLOGGING
             """
         )
+        this.sql.commit()
     }
 
     void configureProteinTable() {
@@ -104,7 +108,6 @@ class Database {
                 it.MD5
             ]) }
         }
-        this.sql.commit()
     }
 
     List<String> getAnalyses() {
