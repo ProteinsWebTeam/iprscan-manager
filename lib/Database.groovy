@@ -21,6 +21,10 @@ class Database {
         }
     }
 
+    void query(String query, List<String> params) {
+        this.sql.execute(query, params)
+    }
+
     void close() {
         if (this.sql) {
             this.sql.close()
@@ -97,5 +101,54 @@ class Database {
             ]) }
         }
         this.sql.commit()
+    }
+
+    List<String> getAnalyses() {
+        def query = """
+            SELECT A.MAX_UPI, A.I6_DIR, A.INTERPRO_VERSION, A.NAME,
+                T.MATCH_TABLE, T.SITE_TABLE,
+                A.ID, A.VERSION
+            FROM ANALYSIS_I6 A
+            INNER JOIN ANALYSIS_TABLES T
+                ON LOWER(A.NAME) = LOWER(T.NAME)
+            WHERE A.ACTIVE = 'Y'
+        """
+        return this.sql.rows(query)
+    }
+
+    List<Map> getPartitions(schema, table) {
+        String query ="""
+            SELECT P.PARTITION_NAME, P.PARTITION_POSITION, P.HIGH_VALUE,
+            K.COLUMN_NAME, K.COLUMN_POSITION
+            FROM ALL_TAB_PARTITIONS P
+            INNER JOIN ALL_PART_KEY_COLUMNS K
+            ON P.TABLE_OWNER = K.OWNER 
+            AND P.TABLE_NAME = K.NAME
+            WHERE P.TABLE_OWNER = ? 
+            AND P.TABLE_NAME = ?
+        """
+        Map<String, Map> partitions = [:]
+
+        this.sql.eachRow(query, [schema.toUpperCase(), table.toUpperCase()]) { row ->
+            String partName = row.PARTITION_NAME
+            if (partitions.containsKey(partName)) {
+                throw new Exception("Multi-column partitioning keys are not supported")
+            }
+            partitions[partName] = [
+                    name    : partName,
+                    position: row.PARTITION_POSITION,
+                    value   : row.HIGH_VALUE,
+                    column  : row.COLUMN_NAME
+            ]
+        }
+
+        return partitions.values().sort { it.position }
+    }
+
+    Integer getJobCount(Integer analysis_id, String max_upi) {
+        return this.sql.execute(
+            "SELECT COUNT (*) FROM IPRSCAN.ANALYSIS_JOBS WHERE ANALYSIS_ID = ? AND UPI_FROM > ?",
+            [analysis_id, max_upi]
+        )[0]
     }
 }
