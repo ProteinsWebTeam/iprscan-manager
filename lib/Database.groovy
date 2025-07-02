@@ -66,6 +66,7 @@ class Database {
             SELECT ID, UPI, TIMESTAMP, USERSTAMP, CRC64, LEN, SEQ_SHORT, SEQ_LONG, MD5
             FROM UNIPARC.PROTEIN
         """
+        System.out.println("GT: ${gt} LE: ${le}")
         def filters = []
         def params = [:]
         if (gt) {
@@ -76,15 +77,18 @@ class Database {
             filters << "UPI <= :le"
             params.le = le
         }
+        System.out.println("filters: ${filters}")
+        System.out.println("params: ${params}")
         if (filters) {
             sqlQuery += " WHERE " + filters.join(" AND ")
         }
+        System.out.println("Query: ${sqlQuery}\nParams: ${params}")
         this.sql.eachRow(sqlQuery, params, rowHandler)
     }
 
     void insertProteins(List<String> records) {
         String insertQuery = """
-            INSERT /* APPEND */ INTO UNIPARC.PROTEIN
+            INSERT /*+ APPEND */ INTO UNIPARC.PROTEIN
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         this.sql.withBatch(insertQuery) { stmt ->
