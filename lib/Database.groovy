@@ -36,7 +36,7 @@ class Database {
         return this.sql.rows(query)[0][0]
     }
 
-    void wipeProteinTable() {
+    void dropProteinTable() {
         this.sql.execute("DROP TABLE UNIPARC.PROTEIN PURGE")
     }
 
@@ -95,6 +95,7 @@ class Database {
             INSERT /*+ APPEND */ INTO UNIPARC.PROTEIN
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
+        System.out.println("INSERT - ${records[0]} to ${records[-1]}")
         this.sql.withBatch(insertQuery) { stmt ->
             records.each { stmt.addBatch([
                 it.ID.toInteger(),
