@@ -47,20 +47,34 @@ The IPM pipeline relies on one configuration file. A template can be found in
 
 ## Usage
 
+There are two required arguments:
+
+Two arguments are required:
+1. `-c` - Path to the `imp.conf` file
+2. `--methods` - The name of the subworkflows (case-insensitive) as a comma separated list to run
+
 ### Analyse
 
 The `ANALYSE` subworkflow coordinates running InterProScan for every "active" analysis in the `ISPRO.ANALYSIS` table,
 and persists all results in the `ISPRO` database.
 
-Two arguments are required:
-1. `-c` - Path to the `imp.conf` file
-2. `--method` - The name of the subworkflow (case-insensitive)
+There are no optional arguments.
 
 For example:
 ```bash
-nextflow run main.nf -c conf/imp.conf --method analyse
+nextflow run main.nf -c conf/imp.conf --methods analyse
 ```
 
 ### Clean
+
+The `CLEAN` subworkflow deletes obsolete data for analyses listed as active `'Y'` in the IprScan database.
+
+There is one optional argument:
+1. `--analyses` - IDs od analyses to clean (default: all)
+
+For example:
+```bash
+nextflow run main.nf -c conf/imp.conf --methods clean
+```
 
 ### Import
