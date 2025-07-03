@@ -57,7 +57,6 @@ class Database {
             ) NOLOGGING
             """
         )
-        this.sql.commit()
     }
 
     void configureProteinTable() {
