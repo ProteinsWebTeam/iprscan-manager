@@ -8,7 +8,7 @@ class IprscanJob {
     Application application = null // member database
 
     IprscanJob(Integer analysis_id, String max_upi, String data_dir, String interpro_version) {
-        this.analysis_id
+        this.analysis_id = analysis_id
         this.maxUpi = max_upi
         this.dataDir = data_dir
         this.interproVersion = interpro_version
@@ -16,7 +16,7 @@ class IprscanJob {
 
     void compileJobName(String prefix = null) {
         def prefixPart = prefix ? "${prefix}_" : ""
-        this.jobName = "${prefixPart}IPM_${this.analysis_id}_InterPro-${interproVersion}_DB-${application.name}_UPI-${this.maxUpi}"
+        this.jobName = "${prefixPart}IPM_A.ID-${this.analysis_id}_InterPro-${interproVersion}_DB-${application.name}_UPI-${this.maxUpi}"
     }
 
     void setFasta(String fasta) {

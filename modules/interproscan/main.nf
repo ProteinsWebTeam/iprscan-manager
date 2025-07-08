@@ -12,8 +12,7 @@ process RUN_INTERPROSCAN {
     tuple val(job), path("*.json")
 
     script:
-    def cmd = ""
-
+    // Compile the nextflow command
     def profileArgs = profile ? "-profile ${profile}" : ""
     def maxWorkers = max_workers ? "--max-workers ${max_workers}" : ""
     def configPath = iprscan_config ? "-c ${iprscan_config}" : ""
@@ -32,12 +31,8 @@ nextflow run ${iprscan_exe} \
 """
 
     if (sbatch_params.enabled) {
-        // submit interproscan as it's own job (with its own resources) to slurm
-        def sbatchFileName = "run_interproscan6.sh"
-        def sbatchFile = new File(sbatchFileName)
-        sbatchFile.text = "#!/bin/bash\n${nfCmd}"
-        sbatchFile.setExecutable(true)
-
+        // Submit the run as it's own job (with its own resources) to slurm
+        // srun (instead of sbatch) so it runs synchronously and nextflow will wait
         def batchParams = [
                     "--job-name=${job.jobName}",
                     "--cpus-per-task=${sbatch_params.cpus}",
@@ -48,12 +43,16 @@ nextflow run ${iprscan_exe} \
         if (sbatch_params.jobLog) batchParams << "--output=${sbatch_params.jobLog}"
         if (sbatch_params.jobErr) batchParams << "--error=${sbatch_params.jobErr}"
 
-        cmd = "sbatch $sbatchFileName ${batchParams.join(' ')}"
+        """
+        echo '#!/bin/bash' > run_interproscan6.sh
+        echo "${nfCmd.replace('"', '\\"')}" >> run_interproscan6.sh
+        chmod +x run_interproscan6.sh
+        srun ${batchParams.join(' ')} ./run_interproscan6.sh
+        """
     } else {
-        // use resources within the IPM job
-        cmd = nfCmd
+        // Use the resources within the IPM job
+        """
+        ${nfCmd}
+        """
     }
-    """
-    $cmd
-    """
 }
