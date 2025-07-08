@@ -51,7 +51,7 @@ process GET_SEQUENCES {
 
     // for each UPI range (from - to) build a FASTA file of the protein sequences
     def upiTo = db.getMaxUPI()
-    def maxUPIs = analyses.keySet().collect { it[0] }.toSet()
+    def maxUPIs = analyses.keySet()
     def fastaFiles = [:]  // upi: fasta
     maxUPIs.each { String upiFrom ->
         fasta = task.workDir.resolve("${upiFrom}.faa")
@@ -63,7 +63,7 @@ process GET_SEQUENCES {
     jobs = [] // Only return the IprscanJobs
     fastaFiles.each { upi, fasta ->
         analyses[upi].each { job ->
-            job.setFasta(fasta)
+            job.setFasta(fasta.toString())
             jobs << job
         }
     }
