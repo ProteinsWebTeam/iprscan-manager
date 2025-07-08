@@ -3,7 +3,7 @@ include { GET_ANALYSES; GET_SEQUENCES } from "../../modules/prepare/jobs"
 include { RUN_INTERPROSCAN            } from "../../modules/interproscan"
 include { SEPARATE_MEMBER_DBS         } from "../../modules/prepare/matches"
 include { REBUILD_INDEXES             } from "../../modules/clean"
-include { PERSIST_MATCHES             } from "../../modules/persist_matches"
+include { PERSIST_MATCHES             } from "../../modules/persist/matches"
 
 workflow ANALYSE {
     take:

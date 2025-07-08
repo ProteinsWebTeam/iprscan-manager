@@ -2,8 +2,7 @@ import java.security.MessageDigest
 
 
 process GET_ANALYSES {
-    // Identify and group analyses to be run
-    // Analyses with the same maxUpi, datadir and interpro version can run in the same iprscan job
+    // Identify build a job for each analysis
     input:
     val iprscan_conf
 
@@ -16,13 +15,20 @@ process GET_ANALYSES {
     def pswd = iprscan_conf.password
     Database db = new Database(uri, user, pswd)
 
-    analyses = [:]
+    // Group jobs by UPI so that we only need to write one FASTA for each unique max UPI
+    analyses = [:]  // UPI: [Jobs]
     def analysis_rows = db.getAnalyses()
     for (row: analysis_rows) {
         (maxUpi, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion) = row
-        key = [maxUpi, dataDir, interproVersion]
-        analyses[key] = analyses.get(key, new IprscanJob(maxUpi, dataDir, interproVersion.toString()))
-        analyses[key].addApplication(dbName, analysisId.toInteger(), dbVersion, matchTable, siteTable)
+        job = new IprscanJob(analysisId.toInteger(), maxUpi, dataDir, interproVersion)
+        job.application = new Application(dbName, dbVersion, matchTable, siteTable)
+        job.compileJobName()
+
+        if (analyses.containsKey(maxUpi)) {
+            analyses[maxUpi] << job
+        } else {
+            analyses[maxUpi] = [job]
+        }
     }
     db.close()
 }
@@ -46,7 +52,7 @@ process GET_SEQUENCES {
     // for each UPI range (from - to) build a FASTA file of the protein sequences
     def upiTo = db.getMaxUPI()
     def maxUPIs = analyses.keySet().collect { it[0] }.toSet()
-    def fastaFiles = [:]
+    def fastaFiles = [:]  // upi: fasta
     maxUPIs.each { String upiFrom ->
         fasta = task.workDir.resolve("${upiFrom}.faa")
         db.writeFasta(upiFrom, upiTo, fasta.toString())
@@ -54,10 +60,11 @@ process GET_SEQUENCES {
     }
 
     // assign the fasta file to each IproscanJob
-    analyses.each { key, value ->
-        value.setFasta(fastaFiles[key[0]].toString())
+    jobs = [] // Only return the IprscanJobs
+    fastaFiles.each { upi, fasta ->
+        analyses[upi].each { job ->
+            job.setFasta(fasta)
+            jobs << job
+        }
     }
-
-    // Only return the IprscanJobs
-    jobs = analyses.values()
 }

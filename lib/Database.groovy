@@ -168,25 +168,32 @@ class Database {
         ) WHERE row_num BETWEEN ? AND ?
         """
 
-        def batch = this.sql.rows(query, [upi_from, upi_to, offset + 1, offset + batchSize])
-        for (row: batch) {
-            def upi = row[0]
-            def seq = row[1] ?: row[2]
+        while (true) {
+            def batch = this.sql.rows(query, [upi_from, upi_to, offset + 1, offset + batchSize])
+            for (row: batch) {
+                def upi = row.UPI
+                def seq = row.SEQ_SHORT ?: row.SEQ_LONG
 
-            // Convert Oracle CLOB to String if necessary - needed for very long seqs
-            if (seq instanceof CLOB) {
-                seq = seq.getSubString(1, (int) seq.length())
-            } else {
-                seq = seq.toString()
-            }
+                // Convert Oracle CLOB to String if necessary - needed for very long seqs
+                if (seq instanceof CLOB) {
+                    seq = seq.getSubString(1, (int) seq.length())
+                } else {
+                    seq = seq.toString()
+                }
 
-            if (seq) {
-                writer.writeLine(">${upi}")
-                for (int i = 0; i < seq.length(); i += 60) {
-                    int end = Math.min(i + 60, seq.length())
-                    writer.writeLine(seq.substring(i, end))
+                if (seq) {
+                    writer.writeLine(">${upi}")
+                    for (int i = 0; i < seq.length(); i += 60) {
+                        int end = Math.min(i + 60, seq.length())
+                        writer.writeLine(seq.substring(i, end))
+                    }
                 }
             }
+            if (batch.isEmpty()) {
+                break
+            }
+
+            offset += batchSize
         }
 
         writer.close()
