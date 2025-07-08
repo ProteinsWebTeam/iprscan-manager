@@ -17,7 +17,7 @@ process RUN_INTERPROSCAN {
     def profileArgs = profile ? "-profile ${profile}" : ""
     def maxWorkers = max_workers ? "--max-workers ${max_workers}" : ""
     def configPath = iprscan_config ? "-c ${iprscan_config}" : ""
-    def applications = job.applications.keySet().collect { it.replace(" ", "-").toLowerCase() }.join(',')
+
     def nfCmd = """
 nextflow run ${iprscan_exe} \
     --skip-interpro \
@@ -25,7 +25,7 @@ nextflow run ${iprscan_exe} \
     --no-matches-api \
     --interpro ${job.interproVersion} \
     --input ${job.fasta} \
-    --applications ${applications} \
+    --applications ${job.application.name} \
     --datadir ${job.dataDir} \
     -work-dir ${work_dir} \
     ${profileArgs} ${maxWorkers} ${configPath}
@@ -39,7 +39,7 @@ nextflow run ${iprscan_exe} \
         sbatchFile.setExecutable(true)
 
         def batchParams = [
-                    "--job-name=${sbatch_params.jobName}",
+                    "--job-name=${job.jobName}",
                     "--cpus-per-task=${sbatch_params.cpus}",
                     "--mem=${sbatch_params.memory}",
                     "--time=${sbatch_params.time}"

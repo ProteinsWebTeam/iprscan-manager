@@ -14,8 +14,9 @@ class IprscanJob {
         this.interproVersion = interpro_version
     }
 
-    void compileJobName() {
-        this.jobName = "IPM_${this.analysis_id}_InterPro-${interproVersion}_DB-${application.name}_UPI-${this.maxUpi}"
+    void compileJobName(String prefix = null) {
+        def prefixPart = prefix ? "${prefix}_" : ""
+        this.jobName = "${prefixPart}IPM_${this.analysis_id}_InterPro-${interproVersion}_DB-${application.name}_UPI-${this.maxUpi}"
     }
 
     void setFasta(String fasta) {

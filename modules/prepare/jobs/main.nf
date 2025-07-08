@@ -5,6 +5,7 @@ process GET_ANALYSES {
     // Identify build a job for each analysis
     input:
     val iprscan_conf
+    val job_conf
 
     output:
     val analyses
@@ -22,7 +23,7 @@ process GET_ANALYSES {
         (maxUpi, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion) = row
         job = new IprscanJob(analysisId.toInteger(), maxUpi, dataDir, interproVersion)
         job.application = new Application(dbName, dbVersion, matchTable, siteTable)
-        job.compileJobName()
+        job.compileJobName(job_conf.jobPrefix)
 
         if (analyses.containsKey(maxUpi)) {
             analyses[maxUpi] << job
