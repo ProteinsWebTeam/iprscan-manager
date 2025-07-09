@@ -1,9 +1,9 @@
 include { INIT_PIPELINE               } from "./init"
-include { GET_ANALYSES; GET_SEQUENCES } from "../../modules/prepare/jobs"
+include { GET_ANALYSES; GET_SEQUENCES } from "../../modules/prepare"
 include { RUN_INTERPROSCAN            } from "../../modules/interproscan"
-include { SEPARATE_MEMBER_DBS         } from "../../modules/prepare/matches"
 include { REBUILD_INDEXES             } from "../../modules/clean"
 include { PERSIST_MATCHES             } from "../../modules/persist/matches"
+// include { PERSIST_JOB                 } from "../../modules/persist/jobs"
 
 workflow ANALYSE {
     take:
@@ -34,8 +34,57 @@ workflow ANALYSE {
         interproscan_params.sbatch,
         iprscan_config
     )
-    matches           = RUN_INTERPROSCAN.out
-    separated_matches = SEPARATE_MEMBER_DBS(matches)
-    prepared_matches  = REBUILD_INDEXES(separated_matches, db_config.iprscanIprscan)
-    PERSIST_MATCHES(separated_matches, db_config.iprscanIprscan)
+    interproscan_out = RUN_INTERPROSCAN.out
+
+    /*
+    If RUN_INTERPROSCAN is succesful, persist the matches,
+    then update the ANALYSIS_JOBS table.
+    If PERSIST_MATCHES fails, mark the job as unsuccessful in
+    the ANALYSIS_JOBS table.
+    If RUN_INTERPROSCAN fails skip straight to updating the
+    ANALYSIS_JOBS table.
+    */
+
+    interproscan_out
+        .branch {
+            success: it[1] != null
+            failed: it[1] == null
+        }
+        .set { run_status }
+
+    run_status.success.view()
+
+    // // iprscan run failed
+    // run_status.failed.map { it[0] }.set { update_only }
+
+    // // iprscan ran successfully
+    // matches        = REBUILD_INDEXES(run_status.success, db_config.iprscanIprscan)
+    // persist_result = PERSIST_MATCHES(matches, db_config.iprscanIprscan)
+
+    // // mark if persisting the matches was successful
+    // persist_result
+    //     .branch {
+    //         persist_success: it.success == true
+    //         persist_failed: it.success == false
+    //     }
+    //     .set { persist_status }
+    // persist_status.persist_success.map { it.job }.set { update_success }
+    // persist_status.persist_failed.map { it.job }.set { update_failure }
+
+    // // identify jobs that ran successfully all the way through
+    // update_only
+    //     .combine(update_failure)
+    //     .map { job -> [job, false] }
+    //     .set { update_jobs_failed }
+    
+    // update_success
+    //     .map { job -> [job, true] }
+    //     .set { update_jobs_success }
+    
+    // update_jobs_failed
+    //     .combine(update_jobs_success)
+    //     .flatten()
+    //     .set { all_updates }
+    
+    // // PERSIST_JOB(all_updates, db_config.iprscanIprscan)
 }
