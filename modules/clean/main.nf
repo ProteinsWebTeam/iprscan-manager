@@ -114,14 +114,16 @@ process CLEAN_OBSOLETE_DATA {
 }
 
 process REBUILD_INDEXES {
+    errorStrategy 'ignore'
+
     /* Prepare the InterProScan database for persisting the matches.
     When partitions have been edited or lost we need to rebuild the indexes. */
     input:
-    val jobs
+    tuple val(job), val(matches_path)
     val ispro_conf
 
     output:
-    val jobs
+    tuple val(job), val(matches_path)
 
     exec:
     def uri = ispro_conf.uri
@@ -130,13 +132,9 @@ process REBUILD_INDEXES {
     Database db = new Database(uri, user, pswd)
 
     def tables = [] as Set
-    for (analysis: jobs) {
-        analysis.applications.each { memberDb, data ->
-            tables << data["matchTable"]
-            if (data["siteTable"]) {
-                tables << data["siteTable"]
-            }
-        }
+    tables << job.application.matchTable
+    if (job.application.siteTable) {
+        tables << job.application.siteTable
     }
 
     def indexes = []

@@ -56,15 +56,15 @@ process GET_SEQUENCES {
     def fastaFiles = [:]  // upi: fasta
     maxUPIs.each { String upiFrom ->
         fasta = task.workDir.resolve("${upiFrom}.faa")
-        db.writeFasta(upiFrom, upiTo, fasta.toString())
-        fastaFiles[upiFrom] = fasta
+        seqCount = db.writeFasta(upiFrom, upiTo, fasta.toString())
+        fastaFiles[upiFrom] = ['fasta': fasta, 'count': seqCount]
     }
 
     // assign the fasta file to each IproscanJob
     jobs = [] // Only return the IprscanJobs
-    fastaFiles.each { upi, fasta ->
+    fastaFiles.each { upi, data ->
         analyses[upi].each { job ->
-            job.setFasta(fasta.toString())
+            job.setFasta(data['fasta'].toString(), data['count'])
             jobs << job
         }
     }

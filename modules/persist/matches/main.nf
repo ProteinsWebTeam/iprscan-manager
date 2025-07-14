@@ -8,13 +8,19 @@ import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
+import com.fasterxml.jackson.databind.node.ArrayNode
 import groovy.json.JsonOutput
 
 process PERSIST_MATCHES {
+    // errorStrategy 'ignore'
+
     // Insert and persist the matches into ISPRO
     input:
-    val job
+    tuple val(job), val(matches_path)
     val ispro_conf
+
+    output:
+    tuple val(job), val(matches_path)
 
     exec:
     def uri = ispro_conf.uri
@@ -23,37 +29,46 @@ process PERSIST_MATCHES {
     Database db = new Database(uri, user, pswd)
     ObjectMapper mapper = new ObjectMapper()
 
-    job.applications.each { String memberDb, Map data ->
-        if (data.containsKey("json")) {  // if no matches were found the "json" key will be missing
-            switch (memberDb) {
-                case "signalp_euk":
-                case "signalp_prok":
-                    persistSignalp(data, db, mapper)
-                    break
-                case "tmhmm":
-                case "deeptmhmm":
-                    persistMinimalist(data, db, mapper)
-                    break
-                default:
-                    throw new UnsupportedOperationException("Unknown database '${memberDb}'")
-            }
-        }
+    def memberDb = job.application.name
+    switch (memberDb) {
+        case "ncbifam":
+            persistDefault(job, matches_path.toString(), db, mapper)
+            break
+        case "signalp_euk":
+        case "signalp_prok":
+            persistSignalp(job, matches_path.toString(), db, mapper)
+            break
+        case "tmhmm":
+        case "deeptmhmm":
+            persistMinimalist(job, matches_path.toString(), db, mapper)
+            break
+        default:
+            throw new UnsupportedOperationException("Unknown database '${memberDb}'")
     }
 
     db.close()
 }
 
-def getMatch(JsonNode result, ObjectMapper mapper) {
-    def upi = result.get("upi").asText()
-    def match = mapper.convertValue(result.get("match"), Map)
-    def methodAc = match.signature.accession
-    def modelAc = match["model-ac"]
-    def seqScore = match.score ? new java.math.BigDecimal(match.score.toString()).toPlainString() : 0
-    def seqEvalue = match.evalue ? new java.math.BigDecimal(match.evalue.toString()).toPlainString() : 0
-    return [upi, match, methodAc, modelAc, seqScore, seqEvalue]
+def getBigDecimal(JsonNode match, String key) {
+    if (match.has(key) && !match.get(key).isNull()) {
+        try { 
+            return new BigDecimal(match.get(key).asText()).toPlainString() 
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid number format for key '${key}': '${valueText}'", e)
+        }
+    }
+    return 0
 }
 
-def ftmFragments(List<Map> locationFragments) {
+def getMatchData(JsonNode match) {
+    def methodAc = match.get("signature").get("accession").asText()
+    def modelAc = match.get("model-ac").asText()
+    def seqScore = getBigDecimal(match, "score")
+    def seqEvalue = getBigDecimal(match, "evalue")
+    return [methodAc, modelAc, seqScore, seqEvalue]
+}
+
+def ftmFragments(ArrayNode locationFragments) {
     // foramt the location-fragment map into the fragment string used in ISPRO
     Map dcstatus2symbol = [
         "CONTINUOUS"       : "S",
@@ -63,7 +78,7 @@ def ftmFragments(List<Map> locationFragments) {
     ]
     List<String> fragmentStrings = []
     locationFragments.each { frag ->
-        fragmentStrings << "${frag['start']}-${frag['end']}-${dcstatus2symbol[frag['dcStatus']]}"
+        fragmentStrings << "${frag.get('start')}-${frag.get('end')}-${dcstatus2symbol[frag.get('dc-status').asText()]}"
     }
     return fragmentStrings.join(",")
 }
@@ -77,58 +92,146 @@ def reverseHmmBounds(String hmmBounds) {
     ][hmmBounds]
 }
 
-def persistMinimalist(Map analysis_data, Database db, ObjectMapper mapper) {
-    values = []
-    streamJsonArray(analysis_data.json.toString(), mapper) { result ->
-        def (upi, match, methodAc, modelAc, seqScore, seqEvalue) = getMatch(result, mapper)
-        match.locations.each { Map location ->
-            values << [
-                analysis_data.id,
-                analysis_data.name,
-                null, null,
-                upi,
-                methodAc,
-                modelAc,
-                location["start"].toInteger(),
-                location["end"].toInteger(),
-                ftmFragments(location["location-fragments"]),
-            ]
+/* Update the streaming to parse the results section,
+loading one seq at a time, and store the matches for the seq */
+
+def persistDefault(IprscanJob job, String matches_path, Database db, ObjectMapper mapper) {
+    def (majorVersion, minorVersion) = job.application.getRelease()
+    def values = []
+
+    streamJson(matches_path, mapper) { result -> // streaming only the "results" Json Array
+        def upi = result.get("xref")[0].get("id").asText()
+        result.get("matches").each { match ->
+            def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
+            match.get("locations").each { location ->
+                values << [
+                    job.analysis_id.toInteger(),
+                    job.application.name,
+                    majorVersion,
+                    minorVersion,
+                    upi,
+                    methodAc,
+                    modelAc,
+                    location.get("start").asInt(),
+                    location.get("end").asInt(),
+                    ftmFragments(location.get('location-fragments')),
+                    seqScore,
+                    seqEvalue,
+                    reverseHmmBounds(location.get("hmmBounds").asText()),
+                    location.get("hmmStart").asInt(),
+                    location.get("hmmEnd").asInt(),
+                    location.get("hmmLength").asInt(),
+                    location.get("envelopeStart").asInt(),
+                    location.get("envelopeEnd").asInt(),
+                    getBigDecimal(location, "score"),
+                    getBigDecimal(location, "evalue")
+                ]
+
+                if (values.size() == db.INSERT_SIZE) {
+                    db.persistDefaultMatches(values, job.application.matchTable)
+                    values.clear()
+                }
+            }
         }
     }
-    db.persistMinimalistMatches(values, analysis_data.matchTable)
+
+    if (!values.isEmpty()) {
+        db.persistDefaultMatches(values, job.application.matchTable)
+    }
 }
 
-def persistSignalp(Map analysis_data, Database db, ObjectMapper mapper) {
+def persistMinimalist(IprscanJob job, String matches_path, Database db, ObjectMapper mapper) {
+    def (majorVersion, minorVersion) = job.application.getRelease()
     values = []
-    streamJsonArray(analysis_data.json.toString(), mapper) { result ->
-        (upi, match, methodAc, modelAc, seqScore, seqEvalue) = getMatch(result, mapper)
-        match.locations.each { Map location ->
-            values << [
-                analysis_data.id,
-                analysis_data.name,
-                null, null,
-                upi,
-                methodAc,
-                modelAc,
-                location["start"].toInteger(),
-                location["end"].toInteger(),
-                null,
-                new java.math.BigDecimal(location["pvalue"].toString()).toPlainString() // Why is this a big decimal???
-            ]
+
+    streamJson(matches_path, mapper) { result -> // streaming only the "results" Json Array
+        def upi = result.get("xref")[0].get("id").asText()
+        results.get("matches").each { match ->
+            def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
+            match.get("locations").each { location ->
+                values << [
+                    job.analysis_id.toInteger(),
+                    job.application.name,
+                    majorVersion,
+                    minorVersion,
+                    upi,
+                    methodAc,
+                    modelAc,
+                    location.get("start").asInt(),
+                    location.get("end").asInt(),
+                    ftmFragments(location.get('location-fragments'))
+                ]
+            }
+
+            if (values.size() == db.INSERT_SIZE) {
+                db.persistMinimalistMatches(values, job.application.matchTable)
+                values.clear()
+            }
         }
     }
-    db.persistSignalpMatches(values, analysis_data.matchTable)
+
+    if (!values.isEmpty()) {
+        db.persistMinimalistMatches(values, job.application.matchTable)
+    }
 }
 
-def streamJsonArray(String filePath, ObjectMapper mapper, Closure closure) {
-    // Stream the data, one jsonNode at a time, from a Json file containing a JsonArray to reduce memory requirements
+def persistSignalp(IprscanJob job, String matches_path, Database db, ObjectMapper mapper) {
+    def (majorVersion, minorVersion) = job.application.getRelease()
+    values = []
+
+    streamJson(matches_path, mapper) { result -> // streaming only the "results" Json Array
+        def upi = result.get("xref")[0].get("id").asText()
+        results.get("matches").each{ match ->
+            def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
+            matches.get("locations").each { location ->
+                values << [
+                    job.analysis_id.toInteger(),
+                    job.application.name,
+                    majorVersion,
+                    minorVersion,
+                    upi,
+                    methodAc,
+                    modelAc,
+                    location.get("start").asInt(),
+                    location.get("end").asInt(),
+                    null,
+                    getBigDecimal(location, "pvalue")
+                ]
+
+                if (values.size() == db.INSERT_SIZE) {
+                    db.persistSignalpMatches(values, job.application.matchTable)
+                    values.clear()
+                }
+            }
+        }
+    }
+
+    if (!values.isEmpty()) {
+        db.persistSignalpMatches(values, job.application.matchTable)
+    }
+}
+
+def streamJson(String filePath, ObjectMapper mapper, Closure closure) {
+    /* Stream the data under the "results" field in the interproscan6 output JSON file,
+    one jsonNode at a time, to reduce memory requirements */
+    JsonFactory factory = mapper.getFactory()
     try {
-        JsonFactory factory = mapper.getFactory()
         JsonParser parser = factory.createParser(new File(filePath))
-        if (parser.nextToken() == JsonToken.START_ARRAY) {
-            while (parser.nextToken() != JsonToken.END_ARRAY) {
-                JsonNode node = mapper.readTree(parser)
-                closure.call(node)
+        while (!parser.isClosed()) {
+            JsonToken token = parser.nextToken()
+            if (token == null) {
+                break
+            }
+            // Look for the 'results' field
+            if (token == JsonToken.FIELD_NAME && parser.getCurrentName() == "results") {
+                parser.nextToken()  // Move to the start of the array
+                if (parser.getCurrentToken() == JsonToken.START_ARRAY) {
+                    while (parser.nextToken() != JsonToken.END_ARRAY) {
+                        JsonNode result = mapper.readTree(parser)
+                        // Call the closure with the result (JsonNode)
+                        closure.call(result)
+                    }
+                }
             }
         }
         parser.close()

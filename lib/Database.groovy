@@ -154,9 +154,10 @@ class Database {
         )[0]
     }
 
-    void writeFasta(String upi_from, String upi_to, String fasta) {
+    Integer writeFasta(String upi_from, String upi_to, String fasta) {
         // Build a fasta file of protein seqs. Batch for speed.
         def writer = new File(fasta.toString()).newWriter()
+        Integer seqCount = 0
         Integer offset = 0
         Integer batchSize = 1000
         String query = """
@@ -187,6 +188,7 @@ class Database {
                         int end = Math.min(i + 60, seq.length())
                         writer.writeLine(seq.substring(i, end))
                     }
+                    seqCount += 1
                 }
             }
             if (batch.isEmpty()) {
@@ -197,6 +199,8 @@ class Database {
         }
 
         writer.close()
+
+        return seqCount
     }
 
     List<String> getIndexStatuses(String owner, String table) {

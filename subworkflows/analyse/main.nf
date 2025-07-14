@@ -3,7 +3,7 @@ include { GET_ANALYSES; GET_SEQUENCES } from "../../modules/prepare"
 include { RUN_INTERPROSCAN            } from "../../modules/interproscan"
 include { REBUILD_INDEXES             } from "../../modules/clean"
 include { PERSIST_MATCHES             } from "../../modules/persist/matches"
-// include { PERSIST_JOB                 } from "../../modules/persist/jobs"
+// include { LOG_JOB                 } from "../../modules/persist/jobs"
 
 workflow ANALYSE {
     take:
@@ -52,14 +52,13 @@ workflow ANALYSE {
         }
         .set { run_status }
 
-    run_status.success.view()
+    // iprscan run failed
+    run_status.failed.map { it[0] }.set { update_only }
 
-    // // iprscan run failed
-    // run_status.failed.map { it[0] }.set { update_only }
-
-    // // iprscan ran successfully
-    // matches        = REBUILD_INDEXES(run_status.success, db_config.iprscanIprscan)
-    // persist_result = PERSIST_MATCHES(matches, db_config.iprscanIprscan)
+    // iprscan ran successfully
+    matches        = REBUILD_INDEXES(run_status.success, db_config.iprscanIprscan)
+    persist_result = PERSIST_MATCHES(matches, db_config.iprscanIprscan)
+    persist_result.view()
 
     // // mark if persisting the matches was successful
     // persist_result
@@ -86,5 +85,5 @@ workflow ANALYSE {
     //     .flatten()
     //     .set { all_updates }
     
-    // // PERSIST_JOB(all_updates, db_config.iprscanIprscan)
+    // // LOG_JOB(all_updates, db_config.iprscanIprscan)
 }
