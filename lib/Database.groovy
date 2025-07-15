@@ -433,4 +433,14 @@ class Database {
             }
         }
     }
+
+    void persistJob(List value) {
+        String insertQuery = """INSERT INTO ANALYSIS_JOBS (
+            ANALYSIS_ID, UPI_FROM, UPI_TO, CREATED_TIME,
+            START_TIME, END_TIME, MAX_MEMORY, LIM_MEMORY,
+            CPU_TIME, SUCCESS, SEQUENCES
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+
+        this.sql.executeInsert(insertQuery, value)
+    }
 }

@@ -6,6 +6,8 @@ class IprscanJob {
     String fasta = null
     Integer seqCount = null
     String jobName = null
+    String upiFrom = null
+    String upiTo = null
     Application application = null // member database
     String createdTime = null
 
@@ -21,9 +23,11 @@ class IprscanJob {
         this.jobName = "${prefixPart}IPM_A.ID-${this.analysis_id}_InterPro-${interproVersion}_DB-${application.name}_UPI-${this.maxUpi}"
     }
 
-    void setFasta(String fasta, Integer seqCount) {
+    void setFasta(String fasta, Integer seqCount, String upiFrom, String upiTo) {
         this.fasta = fasta
         this.seqCount = seqCount
+        this.upiFrom = upiFrom
+        this.upiTo = upiTo
     }
 
 }

@@ -2,12 +2,55 @@
 
 process LOG_JOB {
     input:
-    val job
+    tuple val(job), val(success)
+    val iprscan_db_conf
+    val sbatch_params
 
     exec:
-    def cmd = "sacct --name=${job.jobName} --format=JobID,jobName,State,Elapsed,MaxRSS"
+    def cmd = "sacct --name=${job.jobName} --format=JobID,JobName,State,Elapsed,Start,End,TotalCPU,MaxRSS --parsable2"
     def process = cmd.execute()
     process.waitFor()
     def stdout = process.text.trim().readLines()
-    println "stdout: ${stdout}"
+    // Skip header
+    def dataLines = stdout.findAll { it && !it.startsWith("JobID") }
+    // Find the batch job line (ends with .batch or .ba+)
+    def batchLine = dataLines.find { it.split("\\|")[0] ==~ /.*\.ba.*/ }
+
+    if (batchLine) {
+        def fields     = batchLine.split("\\|")
+        def state      = (fields[2] == "COMPLETED") ? "Y" : "N"
+        def startTime  = java.sql.Timestamp.valueOf(fields[4].replace("T", " "))
+        def endTime    = java.sql.Timestamp.valueOf(fields[5].replace("T", " "))
+        def cpuTimeStr = fields[6]  // e.g., "00:02:30"
+        def (hh, mm, ss) = cpuTimeStr.split(":")*.toInteger()
+        def cpuTimeSec = (hh * 3600 + mm * 60 + ss) / 60
+        def maxRssKb = fields[7]
+        maxRssMb = (maxRssKb[0..-2].toInteger() / 1024).intValue()
+        def memGb = sbatch_params.memory  // e.g., "16GB"
+        memMb = (memGb[0..-3].toInteger() * 1024)
+
+        value = [
+            job.analysis_id,
+            job.upiFrom,
+            job.upiTo,
+            java.sql.Timestamp.valueOf(job.createdTime.replace("T", " ")),
+            startTime,
+            endTime,
+            maxRss,
+            memMb,
+            cpuTimeSec,
+            state,
+            job.seqCount
+        ]
+
+        Database db = new Database(iprscan_db_conf.uri, iprscan_db_conf.user, iprscan_db_conf.password)
+        value.each { v ->
+            println "${v} --> ${v.getClass()}"
+        }
+        db.persistJob(value)
+        db.close()
+    } else {
+        println "No batch job line found for job: ${job.jobName}"
+    }
 }
+

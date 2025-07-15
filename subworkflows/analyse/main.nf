@@ -3,7 +3,7 @@ include { GET_ANALYSES; GET_SEQUENCES } from "../../modules/prepare"
 include { RUN_INTERPROSCAN            } from "../../modules/interproscan"
 include { REBUILD_INDEXES             } from "../../modules/clean"
 include { PERSIST_MATCHES             } from "../../modules/persist/matches"
-// include { LOG_JOB                 } from "../../modules/persist/jobs"
+include { LOG_JOB                     } from "../../modules/persist/jobs"
 
 workflow ANALYSE {
     take:
@@ -58,32 +58,40 @@ workflow ANALYSE {
     // iprscan ran successfully
     matches        = REBUILD_INDEXES(run_status.success, db_config.iprscanIprscan)
     persist_result = PERSIST_MATCHES(matches, db_config.iprscanIprscan)
-    persist_result.view()
 
-    // // mark if persisting the matches was successful
-    // persist_result
-    //     .branch {
-    //         persist_success: it.success == true
-    //         persist_failed: it.success == false
-    //     }
-    //     .set { persist_status }
-    // persist_status.persist_success.map { it.job }.set { update_success }
-    // persist_status.persist_failed.map { it.job }.set { update_failure }
+    // mark if persisting the matches was successful
+    persist_result
+        .branch {
+            persist_success: it[1] == true
+            persist_failed: it[1] == false
+        }
+        .set { persist_status }
+    persist_status.persist_success.map { it[0] }.set { update_success }
+    persist_status.persist_failed.map { it[0] }.set { update_failure }
 
-    // // identify jobs that ran successfully all the way through
-    // update_only
-    //     .combine(update_failure)
-    //     .map { job -> [job, false] }
-    //     .set { update_jobs_failed }
+    // identify jobs that ran successfully all the way through
+    // Identify jobs that ran successfully all the way through
+    update_success
+        .map { job -> [job, true] }
+        .set { update_jobs_success }
+
+    // Only create update_jobs_failed if there are any failed jobs
+    update_only
+        .combine(update_failure)
+        .map { job -> [job, false] }
+        .set { update_jobs_failed }
+
+    // Merge both success and failure updates
+    update_jobs_failed
+        .mix(update_jobs_success)
+        .set { all_updates }
+
+    update_only.view { "update_only: $it" }
+    update_failure.view { "update_failure: $it" }
+    update_success.view { "update_success: $it" }
+    update_jobs_failed.view { "update_jobs_failed: $it" }
+    update_jobs_success.view { "update_jobs_success: $it" }
+    all_updates.view()
     
-    // update_success
-    //     .map { job -> [job, true] }
-    //     .set { update_jobs_success }
-    
-    // update_jobs_failed
-    //     .combine(update_jobs_success)
-    //     .flatten()
-    //     .set { all_updates }
-    
-    // // LOG_JOB(all_updates, db_config.iprscanIprscan)
+    LOG_JOB(all_updates, db_config.iprscanIprscan, interproscan_params.sbatch)
 }

@@ -20,9 +20,10 @@ process PERSIST_MATCHES {
     val ispro_conf
 
     output:
-    tuple val(job), val(matches_path)
+    tuple val(job), val(success)
 
     exec:
+    success = false
     def uri = ispro_conf.uri
     def user = ispro_conf.user
     def pswd = ispro_conf.password
@@ -47,6 +48,7 @@ process PERSIST_MATCHES {
     }
 
     db.close()
+    success = true
 }
 
 def getBigDecimal(JsonNode match, String key) {
