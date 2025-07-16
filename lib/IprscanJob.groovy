@@ -19,11 +19,13 @@ class IprscanJob {
     }
 
     void compileJobName(String prefix = null) {
+        // File a name for the SLURM sbatch job so we can retrieve information for this job later 
         def prefixPart = prefix ? "${prefix}_" : ""
         this.jobName = "${prefixPart}IPM_A.ID-${this.analysis_id}_InterPro-${interproVersion}_DB-${application.name}_UPI-${this.maxUpi}"
     }
 
-    void setFasta(String fasta, Integer seqCount, String upiFrom, String upiTo) {
+    void setSeqData(String fasta, Integer seqCount, String upiFrom, String upiTo) {
+        // Used in mods/prepare/main.nf:GET_SEQUENCES
         this.fasta = fasta
         this.seqCount = seqCount
         this.upiFrom = upiFrom
