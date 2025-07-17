@@ -12,8 +12,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode
 import groovy.json.JsonOutput
 
 process PERSIST_MATCHES {
-    errorStrategy 'ignore'
-
     // Insert and persist the matches into ISPRO
     input:
     tuple val(job), val(matches_path)
@@ -23,32 +21,35 @@ process PERSIST_MATCHES {
     tuple val(job), val(success)
 
     exec:
-    success = false
     def uri = ispro_conf.uri
     def user = ispro_conf.user
     def pswd = ispro_conf.password
     Database db = new Database(uri, user, pswd)
     ObjectMapper mapper = new ObjectMapper()
-
-    def memberDb = job.application.name
-    switch (memberDb) {
-        case "ncbifam":
-            persistDefault(job, matches_path.toString(), db, mapper)
-            break
-        case "signalp_euk":
-        case "signalp_prok":
-            persistSignalp(job, matches_path.toString(), db, mapper)
-            break
-        case "tmhmm":
-        case "deeptmhmm":
-            persistMinimalist(job, matches_path.toString(), db, mapper)
-            break
-        default:
-            throw new UnsupportedOperationException("Unknown database '${memberDb}'")
+    success = false
+    try {
+        def memberDb = job.application.name
+        switch (memberDb) {
+            case "ncbifam":
+                persistDefault(job, matches_path.toString(), db, mapper)
+                break
+            case "signalp_euk":
+            case "signalp_prok":
+                persistSignalp(job, matches_path.toString(), db, mapper)
+                break
+            case "tmhmm":
+            case "deeptmhmm":
+                persistMinimalist(job, matches_path.toString(), db, mapper)
+                break
+            default:
+                throw new UnsupportedOperationException("Unknown database '${memberDb}'")
+        }
+        sucess = true
+    } catch (Exception e) {
+        success = false
     }
 
     db.close()
-    success = true
 }
 
 def getBigDecimal(JsonNode match, String key) {

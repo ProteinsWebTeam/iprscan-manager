@@ -2,7 +2,7 @@
 
 process LOG_JOB {
     input:
-    tuple val(job), val(success)
+    tuple val(job), val(persist_matches_success)
     val iprscan_db_conf
     val sbatch_params
 
@@ -16,9 +16,10 @@ process LOG_JOB {
     // Find the batch job line (ends with .batch or .ba+)
     def batchLine = dataLines.find { it.split("\\|")[0] ==~ /.*\.ba.*/ }
 
+    // TODO : PICK UP THE LATEST JOB, OTHERWISE IT PICKS UP DATA FOR ANY JOB WITH THE SAME NAMW
     if (batchLine) {
         def fields     = batchLine.split("\\|")
-        def state      = (fields[2] == "COMPLETED") ? "Y" : "N"
+        def state      = (fields[2] == "COMPLETED" && persist_matches_success == true) ? "Y" : "N"
         def startTime  = java.sql.Timestamp.valueOf(fields[4].replace("T", " "))
         def endTime    = java.sql.Timestamp.valueOf(fields[5].replace("T", " "))
         def maxRss = fields[7]

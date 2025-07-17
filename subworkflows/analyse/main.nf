@@ -58,7 +58,7 @@ workflow ANALYSE {
     // iprscan ran successfully
     matches        = REBUILD_INDEXES(run_status.success, db_config.iprscanIprscan)
     persist_result = PERSIST_MATCHES(matches, db_config.iprscanIprscan)
-
+    persist_result.view()
     // mark if persisting the matches was successful
     persist_result
         .branch {
@@ -77,7 +77,7 @@ workflow ANALYSE {
 
     // Only create update_jobs_failed if there are any failed jobs
     update_only
-        .combine(update_failure)
+        .mix(update_failure)
         .map { job -> [job, false] }
         .set { update_jobs_failed }
 
