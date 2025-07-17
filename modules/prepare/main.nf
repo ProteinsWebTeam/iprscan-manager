@@ -64,7 +64,7 @@ process GET_SEQUENCES {
     jobs = [] // Only return the IprscanJobs
     fastaFiles.each { upi, data ->
         analyses[upi].each { job ->
-            job.setFasta(data['fasta'].toString(), data['count'], data['upiFrom'], data['upiTo'])
+            job.setSeqData(data['fasta'].toString(), data['count'], data['upiFrom'], data['upiTo'])
             jobs << job
         }
     }

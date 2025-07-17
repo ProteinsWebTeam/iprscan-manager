@@ -1,15 +1,15 @@
 class IprscanJob {
-    Integer analysis_id
-    String maxUpi
-    String dataDir
-    String interproVersion
-    String fasta = null
-    Integer seqCount = null
-    String jobName = null
-    String upiFrom = null
-    String upiTo = null
-    Application application = null // member database
-    String createdTime = null
+    Integer analysis_id            // analysis ID in the ISPRO db
+    String maxUpi                  // Max UPI to analyse
+    String dataDir                 // Str repr of the path to the interproscan 6 data dir
+    String interproVersion         // InterPro database release to use
+    String fasta = null            // Str repr of the path to the FASTA file to be analysed
+    Integer seqCount = null        // Number of sequences being analysed - for insertion into the ANALYSIS_JOBS table
+    String jobName = null          // Name of the SLURM job - so we can retrieve information for the ANALYSIS_JOBS table
+    String upiFrom = null          // Upper range of the analysed sequences - for insertion into the ANALYSIS_JOBS table
+    String upiTo = null            // Lower range of the analysed sequences - for insertion into the ANALYSIS_JOBS table
+    Application application = null // Member database
+    String createdTime = null      // Time sbatch job is created - for insertion into the ANALYSIS_JOBS table
 
     IprscanJob(Integer analysis_id, String max_upi, String data_dir, String interpro_version) {
         this.analysis_id = analysis_id

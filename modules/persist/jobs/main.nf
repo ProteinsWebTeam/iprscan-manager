@@ -21,9 +21,23 @@ process LOG_JOB {
         def state      = (fields[2] == "COMPLETED") ? "Y" : "N"
         def startTime  = java.sql.Timestamp.valueOf(fields[4].replace("T", " "))
         def endTime    = java.sql.Timestamp.valueOf(fields[5].replace("T", " "))
-        def cpuTimeStr = fields[6]  // e.g., "00:02:30"
-        def (hh, mm, ss) = cpuTimeStr.split(":")*.toInteger()
-        def cpuTimeSec = (hh * 3600 + mm * 60 + ss) / 60
+        def maxRss = fields[7]
+        def cpuTimeStr = fields[6]
+        def timeParts = cpuTimeStr.split(":")
+        float cpuTimeSec
+
+        if (timeParts.size() == 3) {
+            def (hh, mm, ssStr) = timeParts
+            def ss = ssStr.toFloat()
+            cpuTimeSec = (hh.toInteger() * 3600 + mm.toInteger() * 60 + ss) / 60
+        } else if (timeParts.size() == 2) {
+            def (mm, ssStr) = timeParts
+            def ss = ssStr.toFloat()
+            cpuTimeSec = (mm.toInteger() * 60 + ss) / 60
+        } else {
+            throw new RuntimeException("Unexpected CPU time format: ${cpuTimeStr}")
+        }
+
         def maxRssKb = fields[7]
         maxRssMb = (maxRssKb[0..-2].toInteger() / 1024).intValue()
         def memGb = sbatch_params.memory  // e.g., "16GB"
@@ -36,7 +50,7 @@ process LOG_JOB {
             java.sql.Timestamp.valueOf(job.createdTime.replace("T", " ")),
             startTime,
             endTime,
-            maxRss,
+            maxRssMb,
             memMb,
             cpuTimeSec,
             state,
@@ -44,9 +58,6 @@ process LOG_JOB {
         ]
 
         Database db = new Database(iprscan_db_conf.uri, iprscan_db_conf.user, iprscan_db_conf.password)
-        value.each { v ->
-            println "${v} --> ${v.getClass()}"
-        }
         db.persistJob(value)
         db.close()
     } else {
