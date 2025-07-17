@@ -49,3 +49,4 @@ process IMPORT_SEQUENCES {
     iprscan_db.close()
     uniparc_db.close()
 }
+// MERGE MAIN

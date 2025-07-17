@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode
 import groovy.json.JsonOutput
 
 process PERSIST_MATCHES {
-    // errorStrategy 'ignore'
+    errorStrategy 'ignore'
 
     // Insert and persist the matches into ISPRO
     input:
