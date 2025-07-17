@@ -1,3 +1,6 @@
+> [!CAUTION]
+> The InterProScan Production Manager is currently under active development and is not yet stable enough for a full release.
+
 # InterProScan Production Manager (IPM)
 
 A Nextflow pipeline to coordinate the calculation, import and cleaning of InterProScan matches for the InterPro database.
