@@ -40,6 +40,8 @@ process RUN_INTERPROSCAN {
     job.createdTime = now.format(formatter)
 
     if (sbatch_params.enabled) {
+        def requiresGpu = job.application.name.toLowerCase().startsWith("signalp") || job.application.name.toLowerCase().startsWith("deeptmhmm")
+
         def batchParams = [
             "--job-name=${job.jobName}",
             "--cpus-per-task=${sbatch_params.cpus}",
@@ -49,6 +51,7 @@ process RUN_INTERPROSCAN {
         if (sbatch_params.nodes) batchParams << "--nodes=${sbatch_params.nodes}"
         if (sbatch_params.jobLog) batchParams << "--output=${sbatch_params.jobLog}"
         if (sbatch_params.jobErr) batchParams << "--error=${sbatch_params.jobErr}"
+        if (requiresGpu) batchParams << "--gres=gpu:1"
 
         def runScript = """
         #!/bin/bash

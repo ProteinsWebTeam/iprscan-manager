@@ -46,6 +46,8 @@ process PERSIST_MATCHES {
         }
         sucess = true
     } catch (Exception e) {
+        println "Error persisting results: ${e}\nCause: ${e.getCause()}"
+        e.printStackTrace()
         success = false
     }
 
