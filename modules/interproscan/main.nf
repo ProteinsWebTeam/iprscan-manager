@@ -15,7 +15,7 @@ process RUN_INTERPROSCAN {
     val iprscan_config
 
     output:
-    tuple val(job), path("*.json", optional: true)
+    tuple val(job), path("*.json")
 
     script:
     def profileArgs = profile ? "-profile ${profile}" : ""
@@ -71,19 +71,33 @@ process RUN_INTERPROSCAN {
         """.stripIndent().trim()
 
         """
+        set +e  # Disable exit on error so we can pass the job object downstream
+
         echo "#!/bin/bash" > run_interproscan6.sh
         echo "${nfCmd.replace('"', '\\"')}" >> run_interproscan6.sh
         chmod +x run_interproscan6.sh
 
+        # First attempt
         ${sbatchCmd1}
         exit_code=\$?
+        echo "First sbatch attempt exit code: \$exit_code"
+
+        # Initialize retry exit code (assume success unless retry is needed)
+        retry_exit_code=0
 
         if [ \$exit_code -ne 0 ]; then
-        echo "Retrying with increased resources..."
-        ${sbatchCmd2}
-        exit_code=\$?
+            echo "Retrying with increased resources..."
+            ${sbatchCmd2}
+            retry_exit_code=\$?
+            echo "Retry sbatch attempt exit code: \$retry_exit_code"
         fi
 
+        # Only create failed.json if BOTH attempts failed
+        if [ \$exit_code -ne 0 ] && [ \$retry_exit_code -ne 0 ]; then
+            echo '{}' > failed.json  # Create a dummy JSON
+        fi
+
+        echo "Process completed, moving on..."
         exit 0
         """
     } else {

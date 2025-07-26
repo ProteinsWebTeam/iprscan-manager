@@ -47,8 +47,8 @@ workflow ANALYSE {
 
     interproscan_out
         .branch {
-            success: it[1] != null
-            failed: it[1] == null
+            success: it[1] != "failed.json"
+            failed: it[1] == "failed.json"
         }
         .set { run_status }
 
