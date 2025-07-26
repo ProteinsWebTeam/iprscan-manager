@@ -13,10 +13,17 @@ process LOG_JOB {
     def stdout = process.text.trim().readLines()
     // Skip header
     def dataLines = stdout.findAll { it && !it.startsWith("JobID") }
-    // Find the batch job line (ends with .batch or .ba+)
-    def batchLine = dataLines.find { it.split("\\|")[0] ==~ /.*\.ba.*/ }
+    // Filter lines matching the batch job pattern
+    def batchLines = dataLines.findAll { it.split("\\|")[0] ==~ /.*\.ba.*/ }
+    // Sort batch lines by start time (field index 4)
+    def sortedBatchLines = batchLines.sort { a, b ->
+        def startA = java.sql.Timestamp.valueOf(a.split("\\|")[4].replace("T", " "))
+        def startB = java.sql.Timestamp.valueOf(b.split("\\|")[4].replace("T", " "))
+        return startB <=> startA  // descending order
+    }
+    // Pick the latest one
+    def batchLine = sortedBatchLines ? sortedBatchLines[0] : null
 
-    // TODO : PICK UP THE LATEST JOB, OTHERWISE IT PICKS UP DATA FOR ANY JOB WITH THE SAME NAMW
     if (batchLine) {
         def fields     = batchLine.split("\\|")
         def state      = (fields[2] == "COMPLETED" && persist_matches_success == true) ? "Y" : "N"
@@ -62,7 +69,7 @@ process LOG_JOB {
         db.persistJob(value)
         db.close()
     } else {
-        println "No batch job line found for job: ${job.jobName}"
+        throw new RuntimeException("SLURM batch job not found for job name: ${job.jobName}. Cannot log this job in the ANALYSIS_JOBS table.")
     }
 }
 

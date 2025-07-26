@@ -2,7 +2,8 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 process RUN_INTERPROSCAN {
-    errorStrategy 'ignore'
+    /* Don't use errorStratgey 'ignore' because no output would be produced,
+    so there would be no IprscanJob instances to pass to LOG_JOBS */
 
     input:
     val job
@@ -83,11 +84,11 @@ process RUN_INTERPROSCAN {
         exit_code=\$?
         fi
 
-        exit \$exit_code
+        exit 0
         """
     } else {
         """
-        ${nfCmd}
+        ${nfCmd} || exit 0
         """
     }
 }
