@@ -26,9 +26,9 @@ process PERSIST_MATCHES {
     def pswd = ispro_conf.password
     Database db = new Database(uri, user, pswd)
     ObjectMapper mapper = new ObjectMapper()
-    success = false
+    success = true
+    def memberDb = job.application.name
     try {
-        def memberDb = job.application.name
         switch (memberDb) {
             case "ncbifam":
                 persistDefault(job, matches_path.toString(), db, mapper)
@@ -44,9 +44,9 @@ process PERSIST_MATCHES {
             default:
                 throw new UnsupportedOperationException("Unknown database '${memberDb}'")
         }
-        sucess = true
+        success = true
     } catch (Exception e) {
-        println "Error persisting results: ${e}\nCause: ${e.getCause()}"
+        println "Error persisting results for ${memberDb}: ${e}\nCause: ${e.getCause()}"
         e.printStackTrace()
         success = false
     }
@@ -104,9 +104,9 @@ def persistDefault(IprscanJob job, String matches_path, Database db, ObjectMappe
     def (majorVersion, minorVersion) = job.application.getRelease()
     def values = []
 
-    streamJson(matches_path, mapper) { result -> // streaming only the "results" Json Array
-        def upi = result.get("xref")[0].get("id").asText()
-        result.get("matches").each { match ->
+    streamJson(matches_path, mapper) { results -> // streaming only the "results" Json Array
+        def upi = results.get("xref")[0].get("id").asText()
+        results.get("matches").each { match ->
             def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
             match.get("locations").each { location ->
                 values << [
@@ -149,8 +149,8 @@ def persistMinimalist(IprscanJob job, String matches_path, Database db, ObjectMa
     def (majorVersion, minorVersion) = job.application.getRelease()
     values = []
 
-    streamJson(matches_path, mapper) { result -> // streaming only the "results" Json Array
-        def upi = result.get("xref")[0].get("id").asText()
+    streamJson(matches_path, mapper) { results -> // streaming only the "results" Json Array
+        def upi = results.get("xref")[0].get("id").asText()
         results.get("matches").each { match ->
             def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
             match.get("locations").each { location ->
@@ -184,14 +184,14 @@ def persistSignalp(IprscanJob job, String matches_path, Database db, ObjectMappe
     def (majorVersion, minorVersion) = job.application.getRelease()
     values = []
 
-    streamJson(matches_path, mapper) { result -> // streaming only the "results" Json Array
-        def upi = result.get("xref")[0].get("id").asText()
-        results.get("matches").each{ match ->
+    streamJson(matches_path, mapper) { results -> // streaming only the "results" Json Array
+        def upi = results.get("xref")[0].get("id").asText()
+        results.get("matches").each { match ->
             def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
-            matches.get("locations").each { location ->
+            match.get("locations").each { location ->
                 values << [
                     job.analysis_id.toInteger(),
-                    job.application.name,
+                    job.application.name.replace("signalp_prok", "SignalP_PROK").replace("signalp_euk", "SignalP_EUK"),
                     majorVersion,
                     minorVersion,
                     upi,
@@ -213,6 +213,7 @@ def persistSignalp(IprscanJob job, String matches_path, Database db, ObjectMappe
 
     if (!values.isEmpty()) {
         db.persistSignalpMatches(values, job.application.matchTable)
+        values.clear()
     }
 }
 
