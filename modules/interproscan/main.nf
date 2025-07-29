@@ -51,7 +51,8 @@ process RUN_INTERPROSCAN {
         if (sbatch_params.nodes) batchParams << "--nodes=${sbatch_params.nodes}"
         if (sbatch_params.jobLog) batchParams << "--output=${sbatch_params.jobLog}"
         if (sbatch_params.jobErr) batchParams << "--error=${sbatch_params.jobErr}"
-        if (requiresGpu) batchParams << "--gres=gpu:1"
+        def gpuParam = requiresGpu ? "--gres=gpu:a100:1" : ""
+
 
         def runScript = """
         #!/bin/bash
@@ -61,7 +62,7 @@ process RUN_INTERPROSCAN {
         /* If InterProScan crashes try the same sbatch run
         with more memory and time */
 
-        def sbatchCmd1 = "sbatch --wait ${batchParams.join(' ')} ./run_interproscan6.sh"
+        def sbatchCmd1 = "sbatch --wait ${batchParams.join(' ')} ${gpuParam} ./run_interproscan6.sh"
 
         def sbatchCmd2 = """
         mem_val="${sbatch_params.memory.replaceAll('[^0-9]', '')}"
@@ -70,7 +71,7 @@ process RUN_INTERPROSCAN {
 
         new_time=\$(python3 -c "import re; t='${sbatch_params.time}'; m=re.match(r'(\\\\d+)-(\\\\d+):(\\\\d+)', t); print(f'{m.group(1)}-{int(int(m.group(2)*1.25))}:{int(int(m.group(3)*1.25))}')")
 
-        sbatch --wait --job-name=${job.jobName}_retry --cpus-per-task=${sbatch_params.cpus} --mem=\${new_mem}\${mem_unit} --time=\$new_time ./run_interproscan6.sh
+        sbatch --wait --job-name=${job.jobName}_retry --cpus-per-task=${sbatch_params.cpus} --mem=\${new_mem}\${mem_unit} --time=\$new_time ${gpuParam} ./run_interproscan6.sh
         """.stripIndent().trim()
 
         """
