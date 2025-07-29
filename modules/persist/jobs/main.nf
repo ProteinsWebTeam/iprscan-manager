@@ -31,19 +31,33 @@ process LOG_JOB {
         def endTime    = java.sql.Timestamp.valueOf(fields[5].replace("T", " "))
         def maxRss = fields[7]
         def cpuTimeStr = fields[6]
-        def timeParts = cpuTimeStr.split(":")
-        float cpuTimeSec
+        float cpuTimeMinutes
 
-        if (timeParts.size() == 3) {
-            def (hh, mm, ssStr) = timeParts
-            def ss = ssStr.toFloat()
-            cpuTimeSec = (hh.toInteger() * 3600 + mm.toInteger() * 60 + ss) / 60
-        } else if (timeParts.size() == 2) {
-            def (mm, ssStr) = timeParts
-            def ss = ssStr.toFloat()
-            cpuTimeSec = (mm.toInteger() * 60 + ss) / 60
+        if (cpuTimeStr.contains("-")) {
+            // Format: D-HH:MM:SS
+            def (daysPart, timePart) = cpuTimeStr.split("-")
+            def timeParts = timePart.split(":")
+            if (timeParts.size() == 3) {
+                def (hh, mm, ssStr) = timeParts
+                def ss = ssStr.toFloat()
+                int days = daysPart.toInteger()
+                cpuTimeMinutes = ((days * 86400) + (hh.toInteger() * 3600) + (mm.toInteger() * 60) + ss) / 60
+            } else {
+                throw new RuntimeException("Unexpected time format in: ${cpuTimeStr}")
+            }
         } else {
-            throw new RuntimeException("Unexpected CPU time format: ${cpuTimeStr}")
+            def timeParts = cpuTimeStr.split(":")
+            if (timeParts.size() == 3) {
+                def (hh, mm, ssStr) = timeParts
+                def ss = ssStr.toFloat()
+                cpuTimeMinutes = (hh.toInteger() * 3600 + mm.toInteger() * 60 + ss) / 60
+            } else if (timeParts.size() == 2) {
+                def (mm, ssStr) = timeParts
+                def ss = ssStr.toFloat()
+                cpuTimeMinutes = (mm.toInteger() * 60 + ss) / 60
+            } else {
+                throw new RuntimeException("Unexpected CPU time format: ${cpuTimeStr}")
+            }
         }
 
         def maxRssKb = fields[7]
