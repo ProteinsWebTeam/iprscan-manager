@@ -3,18 +3,26 @@ import groovy.sql.Sql
 
 
 class Database {
-    private String uri
     private Sql sql
     private static final def INSERT_SIZE = 10000
+    private static final def DRIVERS = [
+        oracle: [
+            driver: "oracle.jdbc.driver.OracleDriver",
+            prefix: "jdbc:oracle:thin"
+        ],
+        postgresql: [
+            driver: "org.postgresql.Driver",
+            prefix: "jdbc:postgresql"
+        ]
+    ]
 
-    Database(String uri, String user, String password, boolean sql = false) {
-        this.uri = uri
-        this.connect(user, password)
+    Database(String uri, String user, String password, String engine) {
+        this.connect(uri, user, password, engine.replace("-", ""))
     }
 
-    private void connect(String user, String password) {
-        String url = "jdbc:oracle:thin:${this.uri}"
-        String driver = "oracle.jdbc.driver.OracleDriver"
+    private void connect(String uri, String user, String password, String engine) {
+        String url = "${this.DRIVER[engine].prefix}:${uri}"
+        String driver = this.DRIVER[engine].driver
         try {
             this.sql = Sql.newInstance(url, user, password, driver)
         } catch (Exception e) {
