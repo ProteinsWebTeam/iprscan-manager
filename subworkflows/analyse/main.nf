@@ -21,8 +21,8 @@ workflow ANALYSE {
     db_config      = INIT_PIPELINE.out.dbConfig.val
     iprscan_config = INIT_PIPELINE.out.iprscanConfig.val
 
-    analyses    = GET_ANALYSES(db_config["intproscan-intproscan"], interproscan_params.sbatch)
-    sequences   = GET_SEQUENCES(db_config["intproscan-intproscan"], analyses)
+    analyses    = GET_ANALYSES(db_config["intprscan-intprscan"], interproscan_params.sbatch)
+    sequences   = GET_SEQUENCES(db_config["intprscan-intprscan"], analyses)
     jobs = sequences.flatten()  // gather the groovy objects into a channel
 
     jobs.view { "Jobs: ${it}"}
@@ -60,8 +60,8 @@ workflow ANALYSE {
     // run_status.failed.view { "run_status - failed: $it" }
 
     // // iprscan ran successfully
-    // matches        = REBUILD_INDEXES(run_status.success, db_config["intproscan-intproscan"])
-    // persist_result = PERSIST_MATCHES(matches, db_config["intproscan-intproscan"])
+    // matches        = REBUILD_INDEXES(run_status.success, db_config["intprscan-intprscan"])
+    // persist_result = PERSIST_MATCHES(matches, db_config["intprscan-intprscan"])
 
     // // mark if persisting the matches was successful
     // persist_result
@@ -97,5 +97,5 @@ workflow ANALYSE {
     // update_jobs_success.view { "update_jobs_success: $it" }
     // all_updates.view()
     
-    // LOG_JOB(all_updates, db_config["intproscan-intproscan"], interproscan_params.sbatch)
+    // LOG_JOB(all_updates, db_config["intprscan-intprscan"], interproscan_params.sbatch)
 }

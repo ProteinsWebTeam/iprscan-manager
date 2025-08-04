@@ -11,10 +11,12 @@ process GET_ANALYSES {
     val analyses
 
     exec:
-    def uri = iprscan_conf.uri
-    def user = iprscan_conf.user
-    def pswd = iprscan_conf.password
-    Database db = new Database(uri, user, pswd)
+    Database db = new Database(
+        iprscan_conf.uri,
+        iprscan_conf.user,
+        iprscan_conf.password,
+        iprscan_conf.engine
+    )
 
     // Group jobs by UPI so that we only need to write one FASTA for each unique max UPI
     analyses = [:]  // UPI: [Jobs]
@@ -45,10 +47,12 @@ process GET_SEQUENCES {
     val jobs
 
     exec:
-    def uri = iprscan_conf.uri
-    def user = iprscan_conf.user
-    def pswd = iprscan_conf.password
-    Database db = new Database(uri, user, pswd)
+    Database db = new Database(
+        iprscan_conf.uri,
+        iprscan_conf.user,
+        iprscan_conf.password,
+        iprscan_conf.engine
+    )
 
     // for each UPI range (from - to) build a FASTA file of the protein sequences
     def upiTo = db.getMaxUPI()
