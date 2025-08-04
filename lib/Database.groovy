@@ -124,7 +124,7 @@ class Database {
         def query = """
             SELECT A.max_upi, A.i6_dir, A.INTERPRO_VERSION, A.name,
                 T.match_table, T.site_table,
-                A.id, A.version
+                A.id, A.version, A.gpu
             FROM iprscan.analysis A
             INNER JOIN iprscan.analysis_tables T
                 ON LOWER(A.name) = LOWER(T.name)

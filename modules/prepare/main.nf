@@ -24,10 +24,10 @@ process GET_ANALYSES {
     analyses = [:]  // UPI: [Jobs]
     def analysis_rows = db.getAnalyses()
     for (row: analysis_rows) {
-        (maxUpi, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion) = row
-        job = new IprscanJob(analysisId.toInteger(), maxUpi, dataDir, interproVersion)
+        (maxUpi, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion, gpu) = row
+        job = new IprscanJob(analysisId.toInteger(), maxUpi, dataDir, interproVersion, gpu)
         job.application = new Application(dbName, dbVersion, matchTable, siteTable)
-        job.compileJobName(job_conf.jobPrefix)
+        job.compileJobName()
 
         if (analyses.containsKey(maxUpi)) {
             analyses[maxUpi] << job
@@ -37,7 +37,6 @@ process GET_ANALYSES {
     }
     db.close()
 }
-
 
 process GET_SEQUENCES {
     // Get sequences to analyse. Return a list of IprscanJobs

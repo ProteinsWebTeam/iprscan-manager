@@ -25,7 +25,7 @@ workflow ANALYSE {
     sequences   = GET_SEQUENCES(db_config["intprscan-uniparc"], analyses)
     jobs = sequences.flatten()  // gather the groovy objects into a channel
 
-    RUN_INTERPROSCAN(
+    RUN_INTERPROSCAN_CPU(
         jobs,
         iprscan_exe,
         profile,
