@@ -1,9 +1,9 @@
-include { INIT_PIPELINE               } from "./init"
-include { GET_ANALYSES; GET_SEQUENCES } from "../../modules/prepare"
-include { RUN_INTERPROSCAN_CPU        } from "../../modules/interproscan"
-include { REBUILD_INDEXES             } from "../../modules/clean"
-include { PERSIST_MATCHES             } from "../../modules/persist/matches"
-include { LOG_JOB                     } from "../../modules/persist/jobs"
+include { INIT_PIPELINE                              } from "./init"
+include { GET_ANALYSES; GET_SEQUENCES                } from "../../modules/prepare"
+include { RUN_INTERPROSCAN_CPU; RUN_INTERPROSCAN_GPU } from "../../modules/interproscan"
+include { REBUILD_INDEXES                            } from "../../modules/clean"
+include { PERSIST_MATCHES                            } from "../../modules/persist/matches"
+include { LOG_JOB                                    } from "../../modules/persist/jobs"
 
 workflow ANALYSE {
     take:
@@ -22,27 +22,38 @@ workflow ANALYSE {
     iprscan_config = INIT_PIPELINE.out.iprscanConfig.val
 
     analyses    = GET_ANALYSES(db_config["intprscan-intprscan"])
-    sequences   = GET_SEQUENCES(db_config["intprscan-uniparc"], analyses)
-    jobs = sequences.flatten()  // gather the groovy objects into a channel
+    GET_SEQUENCES(db_config["intprscan-uniparc"], analyses)
+    cpu_jobs    = GET_SEQUENCES.out[0].flatten() // gather the groovy objects into a channel
+    gpu_jobs    = GET_SEQUENCES.out[1].flatten()
 
     RUN_INTERPROSCAN_CPU(
-        jobs,
+        cpu_jobs,
         iprscan_exe,
         profile,
         work_dir,
         interproscan_params.maxWorkers,
         iprscan_config
     )
-    interproscan_out = RUN_INTERPROSCAN_CPU.out
+    iprscan_cpu_out = RUN_INTERPROSCAN_CPU.out
 
-    // /*
-    // If RUN_INTERPROSCAN is succesful, persist the matches,
-    // then update the ANALYSIS_JOBS table.
-    // If PERSIST_MATCHES fails, mark the job as unsuccessful in
-    // the ANALYSIS_JOBS table.
-    // If RUN_INTERPROSCAN fails skip straight to updating the
-    // ANALYSIS_JOBS table.
-    // */
+    RUN_INTERPROSCAN_GPU(
+        gpu_jobs,
+        iprscan_exe,
+        profile,
+        work_dir,
+        interproscan_params.maxWorkers,
+        iprscan_config
+    )
+    iprscan_gpu_out = RUN_INTERPROSCAN_GPU.out
+
+    /*
+    If RUN_INTERPROSCAN is succesful, persist the matches,
+    then update the ANALYSIS_JOBS table.
+    If PERSIST_MATCHES fails, mark the job as unsuccessful in
+    the ANALYSIS_JOBS table.
+    If RUN_INTERPROSCAN fails skip straight to updating the
+    ANALYSIS_JOBS table.
+    */
 
     // interproscan_out
     //     .branch {

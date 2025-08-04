@@ -39,7 +39,7 @@ process RUN_INTERPROSCAN_CPU {
     """
 }
 
-process RUN_INTERPROSCAN_CPU {
+process RUN_INTERPROSCAN_GPU {
     label 'interproscan', 'use_gpu'
 
     input:
