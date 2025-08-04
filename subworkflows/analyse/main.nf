@@ -21,79 +21,81 @@ workflow ANALYSE {
     db_config      = INIT_PIPELINE.out.dbConfig.val
     iprscan_config = INIT_PIPELINE.out.iprscanConfig.val
 
-    analyses    = GET_ANALYSES(db_config.iprscanIprscan, interproscan_params.sbatch)
-    sequences   = GET_SEQUENCES(db_config.iprscanIprscan, analyses)
+    analyses    = GET_ANALYSES(db_config["intproscan-intproscan"], interproscan_params.sbatch)
+    sequences   = GET_SEQUENCES(db_config["intproscan-intproscan"], analyses)
     jobs = sequences.flatten()  // gather the groovy objects into a channel
 
-    RUN_INTERPROSCAN(
-        jobs,
-        iprscan_exe,
-        profile,
-        work_dir,
-        interproscan_params.runtime.maxWorkers,
-        interproscan_params.sbatch,
-        iprscan_config
-    )
-    interproscan_out = RUN_INTERPROSCAN.out
+    jobs.view { "Jobs: ${it}"}
 
-    /*
-    If RUN_INTERPROSCAN is succesful, persist the matches,
-    then update the ANALYSIS_JOBS table.
-    If PERSIST_MATCHES fails, mark the job as unsuccessful in
-    the ANALYSIS_JOBS table.
-    If RUN_INTERPROSCAN fails skip straight to updating the
-    ANALYSIS_JOBS table.
-    */
+    // RUN_INTERPROSCAN(
+    //     jobs,
+    //     iprscan_exe,
+    //     profile,
+    //     work_dir,
+    //     interproscan_params.runtime.maxWorkers,
+    //     interproscan_params.sbatch,
+    //     iprscan_config
+    // )
+    // interproscan_out = RUN_INTERPROSCAN.out
 
-    interproscan_out
-        .branch {
-            success: it[1] != "failed.json"
-            failed: it[1] == "failed.json"
-        }
-        .set { run_status }
+    // /*
+    // If RUN_INTERPROSCAN is succesful, persist the matches,
+    // then update the ANALYSIS_JOBS table.
+    // If PERSIST_MATCHES fails, mark the job as unsuccessful in
+    // the ANALYSIS_JOBS table.
+    // If RUN_INTERPROSCAN fails skip straight to updating the
+    // ANALYSIS_JOBS table.
+    // */
 
-    // iprscan run failed
-    run_status.failed.map { it[0] }.set { update_only }
-    run_status.success.view { "run_status - success: $it" }
-    run_status.failed.view { "run_status - failed: $it" }
+    // interproscan_out
+    //     .branch {
+    //         success: it[1] != "failed.json"
+    //         failed: it[1] == "failed.json"
+    //     }
+    //     .set { run_status }
 
-    // iprscan ran successfully
-    matches        = REBUILD_INDEXES(run_status.success, db_config.iprscanIprscan)
-    persist_result = PERSIST_MATCHES(matches, db_config.iprscanIprscan)
+    // // iprscan run failed
+    // run_status.failed.map { it[0] }.set { update_only }
+    // run_status.success.view { "run_status - success: $it" }
+    // run_status.failed.view { "run_status - failed: $it" }
 
-    // mark if persisting the matches was successful
-    persist_result
-        .branch {
-            persist_success: it[1] == true
-            persist_failed: it[1] == false
-        }
-        .set { persist_status }
-    persist_status.persist_success.map { it[0] }.set { update_success }
-    persist_status.persist_failed.map { it[0] }.set { update_failure }
+    // // iprscan ran successfully
+    // matches        = REBUILD_INDEXES(run_status.success, db_config["intproscan-intproscan"])
+    // persist_result = PERSIST_MATCHES(matches, db_config["intproscan-intproscan"])
 
-    // identify jobs that ran successfully all the way through
-    // Identify jobs that ran successfully all the way through
-    update_success
-        .map { job -> [job, true] }
-        .set { update_jobs_success }
+    // // mark if persisting the matches was successful
+    // persist_result
+    //     .branch {
+    //         persist_success: it[1] == true
+    //         persist_failed: it[1] == false
+    //     }
+    //     .set { persist_status }
+    // persist_status.persist_success.map { it[0] }.set { update_success }
+    // persist_status.persist_failed.map { it[0] }.set { update_failure }
 
-    // Only create update_jobs_failed if there are any failed jobs
-    update_only
-        .mix(update_failure)
-        .map { job -> [job, false] }
-        .set { update_jobs_failed }
+    // // identify jobs that ran successfully all the way through
+    // // Identify jobs that ran successfully all the way through
+    // update_success
+    //     .map { job -> [job, true] }
+    //     .set { update_jobs_success }
 
-    // Merge both success and failure updates
-    update_jobs_failed
-        .mix(update_jobs_success)
-        .set { all_updates }
+    // // Only create update_jobs_failed if there are any failed jobs
+    // update_only
+    //     .mix(update_failure)
+    //     .map { job -> [job, false] }
+    //     .set { update_jobs_failed }
 
-    update_only.view { "update_only: $it" }
-    update_failure.view { "update_failure: $it" }
-    update_success.view { "update_success: $it" }
-    update_jobs_failed.view { "update_jobs_failed: $it" }
-    update_jobs_success.view { "update_jobs_success: $it" }
-    all_updates.view()
+    // // Merge both success and failure updates
+    // update_jobs_failed
+    //     .mix(update_jobs_success)
+    //     .set { all_updates }
+
+    // update_only.view { "update_only: $it" }
+    // update_failure.view { "update_failure: $it" }
+    // update_success.view { "update_success: $it" }
+    // update_jobs_failed.view { "update_jobs_failed: $it" }
+    // update_jobs_success.view { "update_jobs_success: $it" }
+    // all_updates.view()
     
-    LOG_JOB(all_updates, db_config.iprscanIprscan, interproscan_params.sbatch)
+    // LOG_JOB(all_updates, db_config["intproscan-intproscan"], interproscan_params.sbatch)
 }

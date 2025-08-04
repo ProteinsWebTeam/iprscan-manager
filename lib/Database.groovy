@@ -115,13 +115,14 @@ class Database {
 
     List<String> getAnalyses() {
         def query = """
-            SELECT A.MAX_UPI, A.I6_DIR, A.INTERPRO_VERSION, A.NAME,
-                T.MATCH_TABLE, T.SITE_TABLE,
-                A.ID, A.VERSION
-            FROM ANALYSIS A
-            INNER JOIN ANALYSIS_TABLES T
-                ON LOWER(A.NAME) = LOWER(T.NAME)
-            WHERE A.ACTIVE = 'Y'
+            SELECT A.max_upi, A.i6_dir, A.INTERPRO_VERSION, A.name,
+                T.match_table, T.site_table,
+                A.id, A.version
+            FROM iprscan.analysis A
+            INNER JOIN iprscan.analysis_tables T
+                ON LOWER(A.name) = LOWER(T.name)
+            WHERE A.active AND
+                A.i6_dir IS NOT NULL
         """
         return this.sql.rows(query)
     }
