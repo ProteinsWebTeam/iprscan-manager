@@ -1,11 +1,13 @@
 import java.security.MessageDigest
-
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 process GET_ANALYSES {
     // Identify build a job for each analysis
+    executor 'local'
+
     input:
     val iprscan_conf
-    val job_conf
 
     output:
     val analyses
@@ -39,6 +41,8 @@ process GET_ANALYSES {
 
 process GET_SEQUENCES {
     // Get sequences to analyse. Return a list of IprscanJobs
+    executor 'local'
+
     input:
     val iprscan_conf
     val analyses
@@ -69,6 +73,9 @@ process GET_SEQUENCES {
     fastaFiles.each { upi, data ->
         analyses[upi].each { job ->
             job.setSeqData(data['fasta'].toString(), data['count'], data['upiFrom'], data['upiTo'])
+            def now = LocalDateTime.now()
+            def formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+            job.createdTime = now.format(formatter)
             jobs << job
         }
     }
