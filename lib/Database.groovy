@@ -21,8 +21,8 @@ class Database {
     }
 
     private void connect(String uri, String user, String password, String engine) {
-        String url = "${this.DRIVER[engine].prefix}:${uri}"
-        String driver = this.DRIVER[engine].driver
+        String url = "${this.DRIVERS[engine].prefix}:${uri}"
+        String driver = this.DRIVERS[engine].driver
         try {
             this.sql = Sql.newInstance(url, user, password, driver)
         } catch (Exception e) {

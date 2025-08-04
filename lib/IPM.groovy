@@ -192,7 +192,8 @@ class IPM {
                 config[key] = [
                     "uri"     : creds.uri,
                     "user"    : creds.user,
-                    "password": creds.password
+                    "password": creds.password,
+                    "engine"  : creds.engine
                 ]
             }
         }
