@@ -47,7 +47,8 @@ process GET_SEQUENCES {
     val analyses
 
     output:
-    val jobs
+    val cpuJobs
+    val gpuJobs
 
     exec:
     Database db = new Database(
@@ -67,15 +68,20 @@ process GET_SEQUENCES {
         fastaFiles[upiFrom] = ['fasta': fasta, 'count': seqCount, 'upiFrom': upiFrom, 'upiTo': upiTo]
     }
 
-    // assign the fasta file to each IproscanJob
-    jobs = [] // Only return the IprscanJobs
+    // assign the fasta file to each IproscanJob, and then only return the IprscanJobs
+    cpuJobs = []
+    gpuJobs = []
     fastaFiles.each { upi, data ->
         analyses[upi].each { job ->
             job.setSeqData(data['fasta'].toString(), data['count'], data['upiFrom'], data['upiTo'])
             def now = LocalDateTime.now()
             def formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
             job.createdTime = now.format(formatter)
-            jobs << job
+            if (job.gpu) {
+                gpuJobs << job
+            } else {
+                cpuJobs << job
+            }
         }
     }
 }
