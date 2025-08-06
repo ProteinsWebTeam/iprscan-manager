@@ -38,8 +38,11 @@ class Database {
         return this.sql.rows(query)[0][0]
     }
 
-    void wipeProteinTable() {
+    void dropProteinTable() {
         this.sql.execute("DROP TABLE UNIPARC.PROTEIN PURGE")
+    }
+
+    void buildProteinTable() {
         this.sql.execute(
             """
             CREATE TABLE UNIPARC.PROTEIN
@@ -68,6 +71,7 @@ class Database {
             SELECT ID, UPI, TIMESTAMP, USERSTAMP, CRC64, LEN, SEQ_SHORT, SEQ_LONG, MD5
             FROM UNIPARC.PROTEIN
         """
+        System.out.println("GT: ${gt} LE: ${le}")
         def filters = []
         def params = [:]
         if (gt) {
@@ -78,17 +82,21 @@ class Database {
             filters << "UPI <= :le"
             params.le = le
         }
+        System.out.println("filters: ${filters}")
+        System.out.println("params: ${params}")
         if (filters) {
             sqlQuery += " WHERE " + filters.join(" AND ")
         }
+        System.out.println("Query: ${sqlQuery}\nParams: ${params}")
         this.sql.eachRow(sqlQuery, params, rowHandler)
     }
 
     void insertProteins(List<String> records) {
         String insertQuery = """
-            INSERT /* APPEND */ INTO UNIPARC.PROTEIN
+            INSERT /*+ APPEND */ INTO UNIPARC.PROTEIN
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
+        System.out.println("INSERT - ${records[0]} to ${records[-1]}")
         this.sql.withBatch(insertQuery) { stmt ->
             records.each { stmt.addBatch([
                 it.ID.toInteger(),
@@ -102,7 +110,6 @@ class Database {
                 it.MD5
             ]) }
         }
-        this.sql.commit()
     }
 
     List<String> getAnalyses() {

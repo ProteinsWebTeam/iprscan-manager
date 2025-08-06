@@ -53,7 +53,26 @@ There are two required arguments:
 
 Two arguments are required:
 1. `-c` - Path to the `imp.conf` file
-2. `--methods` - The name of the subworkflows (case-insensitive) as a comma separated list to run
+2. `--methods` - The name of the subworkflows (case-insensitive) as a comma separated list to run:
+    * import
+    * analyse
+    * clean
+
+To see all optional arguments use the `--help` option. Note some optional arguments are subworkflow specific.
+
+### Import
+
+The `IMPORT` subworkflow coordinates retrieving all (or the latest) protein sequences from the `UniParc` database 
+and importing them into the InterProScan (e.g. `ISPRO`) database.
+
+There are 2 optional arguments:
+1. `--top-up` - Import new sequences only
+2. `--max-upi` - Maximum sequence UPI to import
+
+For example:
+```bash
+nextflow run main.nf -c conf/imp.conf --methods import --top-up
+```
 
 ### Import
 
