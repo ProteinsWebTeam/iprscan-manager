@@ -1,4 +1,6 @@
+import oracle.sql.CLOB
 import groovy.sql.Sql
+
 
 class Database {
     private String uri
@@ -108,7 +110,7 @@ class Database {
             SELECT A.MAX_UPI, A.I6_DIR, A.INTERPRO_VERSION, A.NAME,
                 T.MATCH_TABLE, T.SITE_TABLE,
                 A.ID, A.VERSION
-            FROM ANALYSIS_I6 A
+            FROM ANALYSIS A
             INNER JOIN ANALYSIS_TABLES T
                 ON LOWER(A.NAME) = LOWER(T.NAME)
             WHERE A.ACTIVE = 'Y'
@@ -150,5 +152,295 @@ class Database {
             "SELECT COUNT (*) FROM IPRSCAN.ANALYSIS_JOBS WHERE ANALYSIS_ID = ? AND UPI_FROM > ?",
             [analysis_id, max_upi]
         )[0]
+    }
+
+    Integer writeFasta(String upi_from, String upi_to, String fasta) {
+        // Build a fasta file of protein seqs. Batch for speed.
+        def writer = new File(fasta.toString()).newWriter()
+        Integer seqCount = 0
+        Integer offset = 0
+        Integer batchSize = 1000
+        String query = """
+        SELECT UPI, SEQ_SHORT, SEQ_LONG
+        FROM (
+            SELECT UPI, SEQ_SHORT, SEQ_LONG, ROW_NUMBER() OVER (ORDER BY UPI) AS row_num
+            FROM UNIPARC.PROTEIN
+            WHERE UPI BETWEEN ? AND ?
+        ) WHERE row_num BETWEEN ? AND ?
+        """
+
+        while (true) {
+            def batch = this.sql.rows(query, [upi_from, upi_to, offset + 1, offset + batchSize])
+            for (row: batch) {
+                def upi = row.UPI
+                def seq = row.SEQ_SHORT ?: row.SEQ_LONG
+
+                // Convert Oracle CLOB to String if necessary - needed for very long seqs
+                if (seq instanceof CLOB) {
+                    seq = seq.getSubString(1, (int) seq.length())
+                } else {
+                    seq = seq.toString()
+                }
+
+                if (seq) {
+                    writer.writeLine(">${upi}")
+                    for (int i = 0; i < seq.length(); i += 60) {
+                        int end = Math.min(i + 60, seq.length())
+                        writer.writeLine(seq.substring(i, end))
+                    }
+                    seqCount += 1
+                }
+            }
+            if (batch.isEmpty()) {
+                break
+            }
+
+            offset += batchSize
+        }
+
+        writer.close()
+
+        return seqCount
+    }
+
+    List<String> getIndexStatuses(String owner, String table) {
+        def query = """SELECT I.INDEX_NAME, I.STATUS
+            FROM ALL_INDEXES I
+            INNER JOIN ALL_IND_COLUMNS IC
+              ON I.OWNER = IC.INDEX_OWNER
+              AND I.INDEX_NAME = IC.INDEX_NAME
+              AND I.TABLE_NAME = IC.TABLE_NAME
+            WHERE I.TABLE_OWNER = ?
+            AND I.TABLE_NAME = ?
+            ORDER BY I.INDEX_NAME, IC.COLUMN_POSITION
+        """
+        return this.sql.rows(query, [owner, table])
+    }
+
+    void rebuildIndex(String name) {
+        def query = "ALTER INDEX" + name.toString() + "REBUILD"
+        this.sql.execute(query)
+    }
+
+    void persistDefaultMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO ${matchTable} (
+            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
+            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
+            SEQSCORE, SEQEVALUE, HMM_BOUNDS, HMM_START, HMM_END,
+            HMM_LENGTH, ENV_START, ENV_END, SCORE, EVALUE
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistDefaultSites(values, siteTable) {
+        String insertQuery = """INSERT INTO ${siteTable} (
+            ANALYSIS_ID, UPI_RANGE, UPI, MD5, SEQ_LENGTH, ANALYSIS_NAME, METHOD_AC,
+            LOC_START, LOC_END, NUM_SITES, RESIDUE, RES_START, RES_END, DESCRIPTION
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistMinimalistMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO ${matchTable} (
+            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
+            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistCddMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO ${matchTable} (
+            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
+            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
+            SEQSCORE, SEQEVALUE
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistHamapMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO ${matchTable} (
+            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
+            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
+            SEQSCORE, ALIGNMENT
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistMobiDBliteMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO ${matchTable} (
+            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
+            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END,
+            FRAGMENTS, SEQ_FEATURE
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistPantherMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO ${matchTable} (
+            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
+            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
+            SEQSCORE, SEQEVALUE, HMM_BOUNDS, HMM_START, HMM_END,
+            HMM_LENGTH, ENV_START, ENV_END, SCORE, EVALUE, AN_NODE_ID
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistPirsrMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO ${matchTable} (
+            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
+            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
+            SEQSCORE, SEQEVALUE, HMM_BOUNDS, HMM_START, HMM_END,
+            HMM_LENGTH, SCORE, EVALUE, ENV_START, ENV_END
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistPrintsMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO ${matchTable} (
+            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
+            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
+            SEQSCORE, SEQEVALUE, MOTIF_NUMBER, PVALUE, GRAPHSCAN
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistPrositePatternsMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO ${matchTable} (
+            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
+            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
+            LOCATION_LEVEL, ALIGNMENT
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistPrositeProfileMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO ${matchTable} (
+            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
+            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
+            ALIGNMENT
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistSignalpMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO ${matchTable} (
+            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
+            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
+            SEQSCORE
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistSmartMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO ${matchTable} (
+            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
+            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
+            SEQSCORE, SEQEVALUE, HMM_BOUNDS, HMM_START, HMM_END,
+            HMM_LENGTH, SCORE, EVALUE
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistSuperfamilyMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO ${matchTable} (
+            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
+            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
+            SEQEVALUE, HMM_LENGTH
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    void persistJob(List value) {
+        String insertQuery = """INSERT INTO ANALYSIS_JOBS (
+            ANALYSIS_ID, UPI_FROM, UPI_TO, CREATED_TIME,
+            START_TIME, END_TIME, MAX_MEMORY, LIM_MEMORY,
+            CPU_TIME, SUCCESS, SEQUENCES
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+
+        this.sql.executeInsert(insertQuery, value)
     }
 }

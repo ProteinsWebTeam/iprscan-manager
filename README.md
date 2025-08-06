@@ -27,7 +27,8 @@ The IPM pipeline relies on one configuration file. A template can be found in
 > the `interproscan.runtime.workdir` field to a suitable location.
 
 * **databases** - _configure database connections_
-    * **iprscan**: uri (`@Host:Port/Service`), username and password for the `iprscan` user in the InterProScan [IPPRO] database
+    * **iprscanIprscan**: uri (`@Host:Port/Service`), username and password for the `iprscan` user in the InterProScan [ISPRO] database
+    * **iprscanUniParc**: uri (`@Host:Port/Service`), username and password for the `uniparc` user in the InterProScan [ISPRO] database
     * **uniprot**: uri (`@Host:Port/Service`), username and password for the UniParc read-only database
 * **interproscan** - _configure how InterProScan6 is run_
     * **runtime**
@@ -35,6 +36,7 @@ The IPM pipeline relies on one configuration file. A template can be found in
         * **executor**: Run InterProScan6 locally (`local`) or on SLURM (`slurm`)
         * **container**: Container runtime to use (e.g. `'docker'` or `'baremetal'` when the latter is supported)
         * **workdir**: Path to build the workdir. This directory can become extremely large!
+        * **config**: [Optional] Path to an Iprscan 6 config file. This needs to be used when running liscened software, else iprscan won't know where to find the SignalP, Phobius and DeepTMHMM databases
     * **sbatch**
         * **enabled**: Boolean. Submit InterProScan6 as a new job to the cluster, else InterProScan6 will run within the IPM cluster job
         * **nodes**: Nodes to be assigned to the InterProScan6 cluster job
@@ -53,6 +55,12 @@ Two arguments are required:
 1. `-c` - Path to the `imp.conf` file
 2. `--methods` - The name of the subworkflows (case-insensitive) as a comma separated list to run
 
+### Import
+
+The `IMPORT` subworkflow coordinates import protein sequences from UniProt into the InterProScan database.
+
+...
+
 ### Analyse
 
 The `ANALYSE` subworkflow coordinates running InterProScan for every "active" analysis in the `ISPRO.ANALYSIS` table,
@@ -70,11 +78,9 @@ nextflow run main.nf -c conf/imp.conf --methods analyse
 The `CLEAN` subworkflow deletes obsolete data for analyses listed as active `'Y'` in the IprScan database.
 
 There is one optional argument:
-1. `--analyses` - IDs od analyses to clean (default: all)
+1. `--analyses` - IDs of analyses to clean (default: all)
 
 For example:
 ```bash
 nextflow run main.nf -c conf/imp.conf --methods clean
 ```
-
-### Import

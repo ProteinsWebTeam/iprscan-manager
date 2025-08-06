@@ -170,6 +170,11 @@ class IPM {
         return Files.isRegularFile(path) ? path.toRealPath() : null
     }
 
+    static validateConfig(String configPath) {
+        def path = configPath ? resolveFile(configPath) : null
+        return path ? [path, null] : [null, "Could not locate iprscan configuration file '${path}'"]
+    }
+
     static valdidateDbConfig(Map databaseConfig, List<String> databases) {
         if (!databaseConfig) {
             return [null, "No database configurations provided.\nTip: Use the -c option to provide the path to a config file"]

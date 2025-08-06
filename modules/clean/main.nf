@@ -112,3 +112,43 @@ process CLEAN_OBSOLETE_DATA {
 
     db.close()
 }
+
+process REBUILD_INDEXES {
+    errorStrategy 'ignore'
+
+    /* Prepare the InterProScan database for persisting the matches.
+    When partitions have been edited or lost we need to rebuild the indexes. */
+    input:
+    tuple val(job), val(matches_path)
+    val ispro_conf
+
+    output:
+    tuple val(job), val(matches_path)
+
+    exec:
+    def uri = ispro_conf.uri
+    def user = ispro_conf.user
+    def pswd = ispro_conf.password
+    Database db = new Database(uri, user, pswd)
+
+    def tables = [] as Set
+    tables << job.application.matchTable
+    if (job.application.siteTable) {
+        tables << job.application.siteTable
+    }
+
+    def indexes = []
+    for (table: tables) {
+        index_rows = db.getIndexStatuses("IPRSCAN", table)
+        for (row in index_rows) {
+            def index_name = row.INDEX_NAME
+            def index_status = row.STATUS
+            if (index_status == "UNUSABLE" && !indexes.contains(index_name)) {
+                indexes << index_name
+            }
+        }
+        for (index: indexes) {
+            db.rebuildIndex(index)
+        }
+    }
+}
