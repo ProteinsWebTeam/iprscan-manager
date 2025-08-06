@@ -13,21 +13,19 @@ process IMPORT_SEQUENCES {
     if (top_up) {
         currentMaxUpi = iprscan_db.getMaxUPI()
     } else {
-        iprscan_db.wipeProteinTable()
+        iprscan_db.dropProteinTable()
+        iprscan_db.buildProteinTable()
     }
 
+    println currentMaxUpi != null ? "Highest UPI: ${currentMaxUpi}" : 'N/A - top-up not used so wiped the protein table to import all sequences'
     def protCount = 0
     def records = []
-
-    // for testing
-    currentMaxUpi = "UPI003C6BD65E"
-    println "Current highest UPI: ${currentMaxUpi ?: 'N/A'}"
 
     uniparc_db.iterProteins(currentMaxUpi, max_upi) { rec ->
         records << rec
         protCount += 1
 
-        if (records.size() == 1000) {
+        if (records.size() == 10) {
             iprscan_db.insertProteins(records)
             records.clear()
         }
@@ -43,7 +41,7 @@ process IMPORT_SEQUENCES {
     }
 
     currentMaxUpi = iprscan_db.getMaxUPI()
-    println "The new highest UPI: ${currentMaxUpi ?: 'N/A'}"
+    println "The new highest UPI: ${currentMaxUpi}"
     println "${protCount} sequences imported"
 
     iprscan_db.close()
