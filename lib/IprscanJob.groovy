@@ -1,5 +1,5 @@
 class IprscanJob {
-    Integer analysis_id            // analysis ID in the ISPRO db
+    Integer analysisId            // analysis ID in the ISPRO db
     String maxUpi                  // Max UPI to analyse
     String dataDir                 // Str repr of the path to the interproscan 6 data dir
     String interproVersion         // InterPro database release to use
@@ -13,7 +13,7 @@ class IprscanJob {
     String createdTime = null      // Time sbatch job is created - for insertion into the ANALYSIS_JOBS table
 
     IprscanJob(Integer analysis_id, String max_upi, String data_dir, String interpro_version, Boolean gpu) {
-        this.analysis_id = analysis_id
+        this.analysisId = analysis_id
         this.maxUpi = max_upi
         this.dataDir = data_dir
         this.interproVersion = interpro_version
@@ -22,7 +22,7 @@ class IprscanJob {
 
     void compileJobName() {
         // File a name for the SLURM job so we can retrieve information for this job later
-        this.name = "analysis.id-${this.analysis_id}_interpro.v-${interproVersion}_app-${application.name}_upi-${this.maxUpi}"
+        this.name = "analysis.id-${this.analysisId}_interpro.v-${interproVersion}_app-${application.name}_upi-${this.maxUpi}"
     }
 
     void setSeqData(String fasta, Integer seqCount, String upiFrom, String upiTo) {

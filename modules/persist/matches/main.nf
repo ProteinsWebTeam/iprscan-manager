@@ -12,43 +12,101 @@ import com.fasterxml.jackson.databind.node.ArrayNode
 import groovy.json.JsonOutput
 
 process PERSIST_MATCHES {
-    // Insert and persist the matches into ISPRO
+    // Insert and persist the matches into ISPRO/intproscan(db)
+    errorStrategy 'ignore'
+
     input:
-    tuple val(job), val(matches_path)
-    val ispro_conf
+    tuple val(meta), val(job),  val(operation), val(matches_path), val(slurm_id_path)
+    val iprscan_conf
 
     output:
-    tuple val(job), val(success)
+    tuple val(meta), val(job),  val(operation), val(matches_path), val(slurm_id_path)
 
     exec:
-    def uri = ispro_conf.uri
-    def user = ispro_conf.user
-    def pswd = ispro_conf.password
-    Database db = new Database(uri, user, pswd)
+    Database db = new Database(
+        iprscan_conf.uri,
+        iprscan_conf.user,
+        iprscan_conf.password,
+        iprscan_conf.engine
+    )
     ObjectMapper mapper = new ObjectMapper()
-    success = true
-    def memberDb = job.application.name
+
+    def application = job.application.name
+    def (majorVersion, minorVersion) = job.application.getRelease()
+    def formatter
+    def matchPersister
+    def sitePersister
+
+    switch (application) {
+        case "ncbifam":
+            formatter      = this.&fmtDefaultMatches
+            matchPersister = db.&persistDefaultMatches
+            sitePersister  = null
+            break
+        case "signalp_euk":
+        case "signalp_prok":
+            formatter      = this.&fmtSignalpMatches
+            matchPersister = db.&persistSignalpMatches
+            sitePersister  = null
+            break
+        case "tmhmm":
+        case "deeptmhmm":
+            formatter      = this.&fmtMinimalistMatches
+            matchPersister = db.&persistMinimalistMatches
+            sitePersister  = null
+            break
+        default:
+            throw new UnsupportedOperationException("Unknown database '${application}'")
+    }
+
+    matchValues = []
+    siteValues  = []
+
     try {
-        switch (memberDb) {
-            case "ncbifam":
-                persistDefault(job, matches_path.toString(), db, mapper)
-                break
-            case "signalp_euk":
-            case "signalp_prok":
-                persistSignalp(job, matches_path.toString(), db, mapper)
-                break
-            case "tmhmm":
-            case "deeptmhmm":
-                persistMinimalist(job, matches_path.toString(), db, mapper)
-                break
-            default:
-                throw new UnsupportedOperationException("Unknown database '${memberDb}'")
+        streamJson(matches_path.toString(), mapper) { results -> // streaming only the "results" Json Array
+            def upi = results.get("xref")[0].get("id").asText()
+            results.get("matches").each { match ->
+                def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
+                matchMetaData = [
+                    analysisId  : job.analysisId.toInteger(),
+                    application : application,
+                    majorVersion: majorVersion,
+                    minorVersion: minorVersion,
+                    upi         : upi,
+                    methodAc    : methodAc,
+                    modelAc     : modelAc,
+                    seqScore    : seqScore,
+                    seqEvalue   : seqEvalue,
+                ]
+                match.get("locations").each { location ->
+                    (formattedMatch, formattedSite) = formatter(matchMetaData, location)
+                    matchValues << formattedMatch
+                    if (formattedSite) {
+                        siteValues << formattedSite
+                    }
+                    if (matchValues.size() == db.INSERT_SIZE) {
+                        matchPersister(matchValues, job.application.matchTable)
+                        matchValues.clear()
+                    }
+                    if (siteValues.size() == db.INSERT_SIZE) {
+                        sitePersister(siteValues, job.application.siteTable)
+                        siteValues.clear()
+                    }
+                }
+            }
         }
-        success = true
+
+        if (!matchValues.isEmpty()) {
+            matchPersister(matchValues, job.application.matchTable)
+            matchValues.clear()
+        }
+        if (siteValues.size() == db.INSERT_SIZE) {
+            sitePersister(siteValues, job.application.siteTable)
+            siteValues.clear()
+        }
     } catch (Exception e) {
-        println "Error persisting results for ${memberDb}: ${e}\nCause: ${e.getCause()}"
+        println "Error persisting results for ${application}: ${e}\nCause: ${e.getCause()}"
         e.printStackTrace()
-        success = false
     }
 
     db.close()
@@ -57,7 +115,7 @@ process PERSIST_MATCHES {
 def getBigDecimal(JsonNode match, String key) {
     if (match.has(key) && !match.get(key).isNull()) {
         try { 
-            return new BigDecimal(match.get(key).asText()).toPlainString() 
+            return new BigDecimal(match.get(key).asText())
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid number format for key '${key}': '${valueText}'", e)
         }
@@ -97,124 +155,66 @@ def reverseHmmBounds(String hmmBounds) {
     ][hmmBounds]
 }
 
-/* Update the streaming to parse the results section,
-loading one seq at a time, and store the matches for the seq */
-
-def persistDefault(IprscanJob job, String matches_path, Database db, ObjectMapper mapper) {
-    def (majorVersion, minorVersion) = job.application.getRelease()
-    def values = []
-
-    streamJson(matches_path, mapper) { results -> // streaming only the "results" Json Array
-        def upi = results.get("xref")[0].get("id").asText()
-        results.get("matches").each { match ->
-            def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
-            match.get("locations").each { location ->
-                values << [
-                    job.analysis_id.toInteger(),
-                    job.application.name,
-                    majorVersion,
-                    minorVersion,
-                    upi,
-                    methodAc,
-                    modelAc,
-                    location.get("start").asInt(),
-                    location.get("end").asInt(),
-                    ftmFragments(location.get('location-fragments')),
-                    seqScore,
-                    seqEvalue,
-                    reverseHmmBounds(location.get("hmmBounds").asText()),
-                    location.get("hmmStart").asInt(),
-                    location.get("hmmEnd").asInt(),
-                    location.get("hmmLength").asInt(),
-                    location.get("envelopeStart").asInt(),
-                    location.get("envelopeEnd").asInt(),
-                    getBigDecimal(location, "score"),
-                    getBigDecimal(location, "evalue")
-                ]
-
-                if (values.size() == db.INSERT_SIZE) {
-                    db.persistDefaultMatches(values, job.application.matchTable)
-                    values.clear()
-                }
-            }
-        }
-    }
-
-    if (!values.isEmpty()) {
-        db.persistDefaultMatches(values, job.application.matchTable)
-    }
+def fmtDefaultMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue,
+        reverseHmmBounds(location.get("hmmBounds").asText()),
+        location.get("hmmStart").asInt(),
+        location.get("hmmEnd").asInt(),
+        location.get("hmmLength").asInt(),
+        location.get("envelopeStart").asInt(),
+        location.get("envelopeEnd").asInt(),
+        getBigDecimal(location, "score"),
+        getBigDecimal(location, "evalue")
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
 }
 
-def persistMinimalist(IprscanJob job, String matches_path, Database db, ObjectMapper mapper) {
-    def (majorVersion, minorVersion) = job.application.getRelease()
-    values = []
-
-    streamJson(matches_path, mapper) { results -> // streaming only the "results" Json Array
-        def upi = results.get("xref")[0].get("id").asText()
-        results.get("matches").each { match ->
-            def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
-            match.get("locations").each { location ->
-                values << [
-                    job.analysis_id.toInteger(),
-                    job.application.name,
-                    majorVersion,
-                    minorVersion,
-                    upi,
-                    methodAc,
-                    modelAc,
-                    location.get("start").asInt(),
-                    location.get("end").asInt(),
-                    ftmFragments(location.get('location-fragments'))
-                ]
-            }
-
-            if (values.size() == db.INSERT_SIZE) {
-                db.persistMinimalistMatches(values, job.application.matchTable)
-                values.clear()
-            }
-        }
-    }
-
-    if (!values.isEmpty()) {
-        db.persistMinimalistMatches(values, job.application.matchTable)
-    }
+def fmtMinimalistMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments'))
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
 }
 
-def persistSignalp(IprscanJob job, String matches_path, Database db, ObjectMapper mapper) {
-    def (majorVersion, minorVersion) = job.application.getRelease()
-    values = []
-
-    streamJson(matches_path, mapper) { results -> // streaming only the "results" Json Array
-        def upi = results.get("xref")[0].get("id").asText()
-        results.get("matches").each { match ->
-            def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
-            match.get("locations").each { location ->
-                values << [
-                    job.analysis_id.toInteger(),
-                    job.application.name.replace("signalp_prok", "SignalP_PROK").replace("signalp_euk", "SignalP_EUK"),
-                    majorVersion,
-                    minorVersion,
-                    upi,
-                    methodAc,
-                    modelAc,
-                    location.get("start").asInt(),
-                    location.get("end").asInt(),
-                    null,
-                    getBigDecimal(location, "pvalue")
-                ]
-
-                if (values.size() == db.INSERT_SIZE) {
-                    db.persistSignalpMatches(values, job.application.matchTable)
-                    values.clear()
-                }
-            }
-        }
-    }
-
-    if (!values.isEmpty()) {
-        db.persistSignalpMatches(values, job.application.matchTable)
-        values.clear()
-    }
+def fmtSignalpMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application.replace("signalp_prok", "SignalP_PROK").replace("signalp_euk", "SignalP_EUK"),
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        null,
+        getBigDecimal(location, "pvalue")
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
 }
 
 def streamJson(String filePath, ObjectMapper mapper, Closure closure) {
