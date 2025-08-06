@@ -232,11 +232,11 @@ class Database {
     }
 
     void persistDefaultMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
-            SEQSCORE, SEQEVALUE, HMM_BOUNDS, HMM_START, HMM_END,
-            HMM_LENGTH, ENV_START, ENV_END, SCORE, EVALUE
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, fragments,
+            seqscore, seqevalue, hmm_bounds, hmm_start, hmm_end,
+            hmm_length, env_start, env_end, score, evalue
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
