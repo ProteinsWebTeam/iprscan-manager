@@ -23,7 +23,7 @@ workflow ANALYSE {
     analyses       = GET_ANALYSES(db_config["intprscan-intprscan"])
     all_jobs       = GET_SEQUENCES(db_config["intprscan-uniparc"], analyses)
     // Index the jobs and retrieve all the indexes
-    // so we can separate successfully from failed jobs -> [[index, job operation], [index, job, operation]]
+    // so we can separate successfully from failed jobs -> [[index, job, gpu[bool]], [index, job, gpu[bool]]]
     cpu_jobs    = all_jobs[0]
     ch_cpu_jobs = cpu_jobs
         .map { cpu_jobs -> cpu_jobs.indexed() }
@@ -62,11 +62,18 @@ workflow ANALYSE {
         iprscan_config
     )
 
-    ch_cpu_results = iprscan_cpu_out ?: Channel.empty()
-    ch_gpu_results = iprscan_gpu_out ?: Channel.empty()
-    ch_iprscan_results = ch_cpu_results.merge(ch_gpu_results)
-    ch_iprscan_results.view { "ch_iprscan_results: ${it}" }
+    // ch_cpu_results = iprscan_cpu_out ?: Channel.empty()
+    // ch_gpu_results = iprscan_gpu_out ?: Channel.empty()
+    // ch_iprscan_results = ch_cpu_results.combine(ch_gpu_results)
+    // ch_iprscan_results.view { "ch_iprscan_results: ${it}" }
 
-    successful_jobs = PERSIST_MATCHES(ch_iprscan_results, db_config["intprscan-intprscan"])
+
+    ch_grouped = iprscan_cpu_out
+        .merge(iprscan_gpu_out)
+        .collect()
+        .map { it -> tuple(it) }  // Wrap as a single tuple of tuples
+    ch_grouped.view { "ch_grouped: ${it}" }
+
+    successful_jobs = PERSIST_MATCHES(ch_grouped, db_config["intprscan-intprscan"])
     // LOG_JOB(successful_jobs, all_cpu_job_ids, all_gpu_job_ids, db_config["intprscan-intprscan"])
 }
