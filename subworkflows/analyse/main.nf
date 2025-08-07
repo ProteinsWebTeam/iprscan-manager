@@ -23,20 +23,26 @@ workflow ANALYSE {
     analyses       = GET_ANALYSES(db_config["intprscan-intprscan"])
     all_jobs       = GET_SEQUENCES(db_config["intprscan-uniparc"], analyses)
     // Index the jobs and retrieve all the indexes
-    // so we can separate successfully from failed jobs -> [[index, job], [index, job]]
+    // so we can separate successfully from failed jobs -> [[index, job operation], [index, job, operation]]
     cpu_jobs    = all_jobs[0]
     ch_cpu_jobs = cpu_jobs
         .map { cpu_jobs -> cpu_jobs.indexed() }
         .flatMap()
-        .map { entry -> [entry.key, entry.value, "cpu"] }
+        .map { entry -> [entry.key, entry.value, false] }
     all_cpu_job_ids = ch_cpu_jobs.map { it[0] }.collect()  // e.g. [0, 1, 2]
 
     gpu_jobs    = all_jobs[1]
     ch_gpu_jobs = gpu_jobs
         .map { gpu_jobs -> gpu_jobs.indexed() }
         .flatMap()
-        .map { entry -> [entry.key, entry.value, "gpu"] }
+        .map { entry -> [entry.key, entry.value, true] }
     all_gpu_job_ids = ch_gpu_jobs.map { it[0] }.collect()  // e.g. [0, 1]
+
+    /*
+    If RUN_INTERPROSCAN is succesful, persist the matches and update the ANALYSIS_JOBS table.
+    If PERSIST_MATCHES fails, mark the job as unsuccessful in the ANALYSIS_JOBS table.
+    If RUN_INTERPROSCAN fails skip straight to updating the ANALYSIS_JOBS table.
+    */
 
     iprscan_cpu_out = RUN_INTERPROSCAN_CPU(
         ch_cpu_jobs,
@@ -56,50 +62,11 @@ workflow ANALYSE {
         iprscan_config
     )
 
-    /*
-    If RUN_INTERPROSCAN is succesful, persist the matches and update the ANALYSIS_JOBS table.
-    If PERSIST_MATCHES fails, mark the job as unsuccessful in the ANALYSIS_JOBS table.
-    If RUN_INTERPROSCAN fails skip straight to updating the ANALYSIS_JOBS table.
-    */
-
-    ch_iprscan_results = iprscan_cpu_out.merge(iprscan_gpu_out)
+    ch_cpu_results = iprscan_cpu_out ?: Channel.empty()
+    ch_gpu_results = iprscan_gpu_out ?: Channel.empty()
+    ch_iprscan_results = ch_cpu_results.merge(ch_gpu_results)
     ch_iprscan_results.view { "ch_iprscan_results: ${it}" }
 
-    persisted_results = PERSIST_MATCHES(iprscan_cpu_out, db_config["intprscan-intprscan"])
-
-    // // mark if persisting the matches was successful
-    // persist_result
-    //     .branch {
-    //         persist_success: it[1] == true
-    //         persist_failed: it[1] == false
-    //     }
-    //     .set { persist_status }
-    // persist_status.persist_success.map { it[0] }.set { update_success }
-    // persist_status.persist_failed.map { it[0] }.set { update_failure }
-
-    // // identify jobs that ran successfully all the way through
-    // // Identify jobs that ran successfully all the way through
-    // update_success
-    //     .map { job -> [job, true] }
-    //     .set { update_jobs_success }
-
-    // // Only create update_jobs_failed if there are any failed jobs
-    // update_only
-    //     .mix(update_failure)
-    //     .map { job -> [job, false] }
-    //     .set { update_jobs_failed }
-
-    // // Merge both success and failure updates
-    // update_jobs_failed
-    //     .mix(update_jobs_success)
-    //     .set { all_updates }
-
-    // update_only.// { "update_only: $it" }
-    // update_failure.view { "update_failure: $it" }
-    // update_success.view { "update_success: $it" }
-    // update_jobs_failed.view { "update_jobs_failed: $it" }
-    // update_jobs_success.view { "update_jobs_success: $it" }
-    // all_updates.view()
-    
-    // LOG_JOB(all_updates, db_config["intprscan-intprscan"], interproscan_params.sbatch)
+    successful_jobs = PERSIST_MATCHES(ch_iprscan_results, db_config["intprscan-intprscan"])
+    // LOG_JOB(successful_jobs, all_cpu_job_ids, all_gpu_job_ids, db_config["intprscan-intprscan"])
 }
