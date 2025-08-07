@@ -13,14 +13,15 @@ import groovy.json.JsonOutput
 
 process PERSIST_MATCHES {
     // Insert and persist the matches into ISPRO/intproscan(db)
+    executor 'local'
     errorStrategy 'ignore'
 
     input:
-    tuple val(meta), val(job),  val(operation), val(matches_path), val(slurm_id_path)
+    tuple val(meta), val(job), val(gpu), val(matches_path), val(slurm_id_path)
     val iprscan_conf
 
     output:
-    tuple val(meta), val(job),  val(operation), val(matches_path), val(slurm_id_path)
+    tuple val(meta), val(job), val(gpu), val(slurm_id_path)
 
     exec:
     Database db = new Database(
