@@ -4,7 +4,7 @@ process RUN_INTERPROSCAN_CPU {
     label 'interproscan'
 
     input:
-    tuple val(meta), val(job), val(operation)
+    tuple val(meta), val(job), val(gpu)
     val iprscan_exe
     val profile
     val work_dir
@@ -41,7 +41,7 @@ process RUN_INTERPROSCAN_GPU {
     label 'interproscan', 'use_gpu'
 
     input:
-    tuple val(meta), val(job), val(operation)
+    tuple val(meta), val(job), val(gpu)
     val iprscan_exe
     val profile
     val work_dir

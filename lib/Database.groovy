@@ -269,7 +269,7 @@ class Database {
     }
 
     void persistMinimalistMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
             ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
             UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS
         )
@@ -283,7 +283,7 @@ class Database {
     }
 
     void persistCddMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
             ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
             UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
             SEQSCORE, SEQEVALUE
@@ -298,7 +298,7 @@ class Database {
     }
 
     void persistHamapMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
             ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
             UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
             SEQSCORE, ALIGNMENT
@@ -313,7 +313,7 @@ class Database {
     }
 
     void persistMobiDBliteMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
             ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
             UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END,
             FRAGMENTS, SEQ_FEATURE
@@ -328,7 +328,7 @@ class Database {
     }
 
     void persistPantherMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
             ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
             UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
             SEQSCORE, SEQEVALUE, HMM_BOUNDS, HMM_START, HMM_END,
@@ -344,7 +344,7 @@ class Database {
     }
 
     void persistPirsrMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
             ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
             UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
             SEQSCORE, SEQEVALUE, HMM_BOUNDS, HMM_START, HMM_END,
@@ -360,7 +360,7 @@ class Database {
     }
 
     void persistPrintsMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
             ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
             UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
             SEQSCORE, SEQEVALUE, MOTIF_NUMBER, PVALUE, GRAPHSCAN
@@ -375,7 +375,7 @@ class Database {
     }
 
     void persistPrositePatternsMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
             ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
             UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
             LOCATION_LEVEL, ALIGNMENT
@@ -390,7 +390,7 @@ class Database {
     }
 
     void persistPrositeProfileMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
             ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
             UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
             ALIGNMENT
@@ -405,7 +405,7 @@ class Database {
     }
 
     void persistSignalpMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
             ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
             UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
             SEQSCORE
@@ -420,7 +420,7 @@ class Database {
     }
 
     void persistSmartMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
             ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
             UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
             SEQSCORE, SEQEVALUE, HMM_BOUNDS, HMM_START, HMM_END,
@@ -436,7 +436,7 @@ class Database {
     }
 
     void persistSuperfamilyMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
             ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
             UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
             SEQEVALUE, HMM_LENGTH
