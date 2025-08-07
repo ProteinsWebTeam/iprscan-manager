@@ -62,18 +62,13 @@ workflow ANALYSE {
         iprscan_config
     )
 
-    // ch_cpu_results = iprscan_cpu_out ?: Channel.empty()
-    // ch_gpu_results = iprscan_gpu_out ?: Channel.empty()
-    // ch_iprscan_results = ch_cpu_results.combine(ch_gpu_results)
-    // ch_iprscan_results.view { "ch_iprscan_results: ${it}" }
+    ch_iprscan_results = iprscan_cpu_out
+        .mix(iprscan_gpu_out)
+    ch_iprscan_results.view { "ch_iprscan_results: ${it}" }
 
-
-    ch_grouped = iprscan_cpu_out
-        .merge(iprscan_gpu_out)
+    successful_jobs = PERSIST_MATCHES(ch_iprscan_results, db_config["intprscan-intprscan"])
         .collect()
-        .map { it -> tuple(it) }  // Wrap as a single tuple of tuples
-    ch_grouped.view { "ch_grouped: ${it}" }
-
-    successful_jobs = PERSIST_MATCHES(ch_grouped, db_config["intprscan-intprscan"])
+        .flatten()
+    successful_jobs.view { "successful_jobs: ${successful_jobs} "}
     // LOG_JOB(successful_jobs, all_cpu_job_ids, all_gpu_job_ids, db_config["intprscan-intprscan"])
 }
