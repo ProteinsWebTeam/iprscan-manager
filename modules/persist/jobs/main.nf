@@ -10,6 +10,10 @@ process LOG_JOB {
     val iprscan_db_conf
 
     exec:
+    // persist the failed jobs
+
+    // persist the successful jobs
+
     def cmd = "sacct --name=${job.jobName} --format=JobID,JobName,State,Elapsed,Start,End,TotalCPU,MaxRSS --parsable2"
     def process = cmd.execute()
     process.waitFor()
