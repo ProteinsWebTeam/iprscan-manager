@@ -451,10 +451,10 @@ class Database {
     }
 
     void persistJob(List value) {
-        String insertQuery = """INSERT INTO ANALYSIS_JOBS (
-            ANALYSIS_ID, UPI_FROM, UPI_TO, CREATED_TIME,
-            START_TIME, END_TIME, MAX_MEMORY, LIM_MEMORY,
-            CPU_TIME, SUCCESS, SEQUENCES
+        String insertQuery = """INSERT INTO iprscan.analysis_jobs (
+            analysis_id, upi_from, upi_to, created_time,
+            start_time, end_time, max_memory, lim_memory,
+            cpu_time, success, sequences
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
 
         this.sql.executeInsert(insertQuery, value)
