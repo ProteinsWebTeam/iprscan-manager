@@ -1,20 +1,89 @@
-// Insert and persist the job data in the IS-db (e.g. ISPRO) ANALYSIS_JOBS table
+// Insert and persist the job data in the interproscan-db ANALYSIS_JOBS table
 
-process LOG_JOB {
+process LOG_JOBS {
     executor 'local'
 
     input:
-    tuple val(meta), val(job), val(gpu), val(slurm_id_path)
-    val all_cpu_job_ids
-    val all_gpu_job_ids
+    val successful_persist_matches_jobs // each = tuple val(meta), val(job), val(gpu), val(slurm_id_path)
+    val successful_iprscan_jobs         // each = tuple val(meta), val(job), val(gpu), val(slurm_id_path)
+    val all_cpu_jobs                    // each = tuple val(meta), val(job), val(gpu)
+    val all_gpu_jobs                    // each = tuple val(meta), val(job), val(gpu)
     val iprscan_db_conf
 
     exec:
-    // persist the failed jobs
+    Database db = new Database(
+        iprscan_db_conf.uri,
+        iprscan_db_conf.user,
+        iprscan_db_conf.password,
+        iprscan_db_conf.engine
+    )
 
-    // persist the successful jobs
+    def allJobsMap = [cpu: [:], gpu: [:]]
+    def addToJobMap = { jobList, defaultSuccess, defaultSlurmFile = null ->
+        jobList.each { job ->
+            def (jobId, jobObj, jobHardware, jobSlurmFile) = job
+            def hardware = jobHardware ? 'gpu' : 'cpu'
+            if (!allJobsMap[hardware].containsKey(jobId)) {
+                allJobsMap[hardware][jobId] = [
+                    job        : jobObj,
+                    slurmIdFile: jobSlurmFile ?: defaultSlurmFile,
+                    success    : defaultSuccess
+                ]
+            }
+        }
+    }
 
-    def cmd = "sacct --name=${job.jobName} --format=JobID,JobName,State,Elapsed,Start,End,TotalCPU,MaxRSS --parsable2"
+    // Add successful persisted jobs
+    addToJobMap(successful_persist_matches_jobs, true)
+
+    // Add successful iprscan jobs that failed persisting
+    addToJobMap(successful_iprscan_jobs, false)
+
+    // Add all CPU jobs not already in map
+    addToJobMap(all_cpu_jobs.collect { it + [null] }, false)
+
+    // Add all GPU jobs not already in map
+    addToJobMap(all_gpu_jobs.collect { it + [null] }, false)
+
+    allJobsMap.cpu.each { jobId, jobMap ->
+        // Get cluster job info. If not a cluster job all values will be null
+        (startTime, endTime, maxMemory, limMemory, cpuTime) = getSlurmJobData(
+            jobMap.slurmIdFile.toString(),
+            jobMap.job.analysisId
+        )
+        value = [
+            jobMap.job.analysisId,
+            jobMap.job.upiFrom,
+            jobMap.job.upiTo,
+            jobMap.job.createdTime,
+            startTime,
+            endTime,
+            maxMemory,
+            limMemory,
+            cpuTime,
+            jobMap.success,
+            jobMap.job.seqCount
+        ]
+        db.persistJob(value)
+    }
+    
+    db.close()
+}
+
+def getSlurmJobData(String slurm_id_file, int analysis_id) {
+    def slurmId   = null
+    def startTime = null // timestamp
+    def endTime   = null // timestamp
+    def maxMemory = null // int
+    def limMemory = null // int
+    def cpuTime   = null // int
+
+    if (!slurm_id_file) {
+        [startTime, endTime, maxMemory, limMemory, cpuTime]
+    }
+
+    slurmId = new File(slurm_id_file).text
+    def cmd = "sacct -j ${slurmId} --format=JobID,ReqMem,MaxRSS,Elapsed,Start,End,TotalCPU --parsable2"
     def process = cmd.execute()
     process.waitFor()
     def stdout = process.text.trim().readLines()
@@ -29,68 +98,44 @@ process LOG_JOB {
         return startB <=> startA  // descending order
     }
     // Pick the latest one
-    def batchLine = sortedBatchLines ? sortedBatchLines[0] : null
-
+    batchLine = sortedBatchLines ? sortedBatchLines[0] : null
+    
     if (batchLine) {
-        def fields     = batchLine.split("\\|")
-        def state      = (fields[2] == "COMPLETED" && persist_matches_success == true) ? "Y" : "N"
-        def startTime  = java.sql.Timestamp.valueOf(fields[4].replace("T", " "))
-        def endTime    = java.sql.Timestamp.valueOf(fields[5].replace("T", " "))
-        def maxRss = fields[7]
-        def cpuTimeStr = fields[6]
-        float cpuTimeMinutes
-
-        if (cpuTimeStr.contains("-")) {
-            // Format: D-HH:MM:SS
-            def (daysPart, timePart) = cpuTimeStr.split("-")
-            def timeParts = timePart.split(":")
-            if (timeParts.size() == 3) {
-                def (hh, mm, ssStr) = timeParts
-                def ss = ssStr.toFloat()
-                int days = daysPart.toInteger()
-                cpuTimeMinutes = ((days * 86400) + (hh.toInteger() * 3600) + (mm.toInteger() * 60) + ss) / 60
-            } else {
-                throw new RuntimeException("Unexpected time format in: ${cpuTimeStr}")
-            }
-        } else {
-            def timeParts = cpuTimeStr.split(":")
-            if (timeParts.size() == 3) {
-                def (hh, mm, ssStr) = timeParts
-                def ss = ssStr.toFloat()
-                cpuTimeMinutes = (hh.toInteger() * 3600 + mm.toInteger() * 60 + ss) / 60
-            } else if (timeParts.size() == 2) {
-                def (mm, ssStr) = timeParts
-                def ss = ssStr.toFloat()
-                cpuTimeMinutes = (mm.toInteger() * 60 + ss) / 60
-            } else {
-                throw new RuntimeException("Unexpected CPU time format: ${cpuTimeStr}")
-            }
-        }
-
-        def maxRssKb = fields[7]
-        maxRssMb = (maxRssKb[0..-2].toInteger() / 1024).intValue()
-        def memGb = sbatch_params.memory  // e.g., "16GB"
-        memMb = (memGb[0..-3].toInteger() * 1024)
-
-        value = [
-            job.analysis_id,
-            job.upiFrom,
-            job.upiTo,
-            java.sql.Timestamp.valueOf(job.createdTime.replace("T", " ")),
-            startTime,
-            endTime,
-            maxRssMb,
-            memMb,
-            cpuTimeSec,
-            state,
-            job.seqCount
-        ]
-
-        Database db = new Database(iprscan_db_conf.uri, iprscan_db_conf.user, iprscan_db_conf.password)
-        db.persistJob(value)
-        db.close()
+        def fields = batchLine.split("\\|")
+        startTime  = java.sql.Timestamp.valueOf(fields[4].replace("T", " "))
+        endTime    = java.sql.Timestamp.valueOf(fields[5].replace("T", " "))
+        maxMemory  = fields[2]  // maxRss
+        limMemory  = fields[1]  // ReqMem
+        cpuTimeStr = fields[6]  // TotalCPU
+        cpuTime    = parseTime(cpuTimeStr)
     } else {
-        throw new RuntimeException("SLURM batch job not found for job name: ${job.jobName}. Cannot log this job in the ANALYSIS_JOBS table.")
+        throw new RuntimeException("SLURM batch job not found for job id: ${slurmId} (analysis id: ${analysis_id}). Cannot log this job in the ANALYSIS_JOBS table.")
     }
+
+    return [startTime, endTime, maxMemory, limMemory, cpuTime]
 }
 
+def parseTime(String cpuTimeStr) {
+    def (days, hh, mm, ss) = [0, 0, 0, 0.0]
+
+    def timeStr = cpuTimeStr
+    if (cpuTimeStr.contains("-")) {
+        def parts = cpuTimeStr.split("-")
+        days = parts[0].toInteger()
+        timeStr = parts[1]
+    }
+
+    def timeParts = timeStr.split(":")
+    switch (timeParts.size()) {
+        case 3:
+            (hh, mm, ss) = [timeParts[0].toInteger(), timeParts[1].toInteger(), timeParts[2].toFloat()]
+            break
+        case 2:
+            (mm, ss) = [timeParts[0].toInteger(), timeParts[1].toFloat()]
+            break
+        default:
+            throw new RuntimeException("Unexpected CPU time format: ${cpuTimeStr}")
+    }
+
+    return ((days * 86400) + (hh * 3600) + (mm * 60) + ss) / 60
+}

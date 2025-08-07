@@ -17,7 +17,7 @@ process PERSIST_MATCHES {
     errorStrategy 'ignore'
 
     input:
-    tuple val(meta), val(job), val(gpu), val(matches_path), val(slurm_id_path)
+    tuple val(meta), val(job), val(gpu), val(slurm_id_path), val(matches_path)
     val iprscan_conf
 
     output:
@@ -63,51 +63,47 @@ process PERSIST_MATCHES {
     matchValues = []
     siteValues  = []
 
-    try {
-        streamJson(matches_path.toString(), mapper) { results -> // streaming only the "results" Json Array
-            def upi = results.get("xref")[0].get("id").asText()
-            results.get("matches").each { match ->
-                def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
-                matchMetaData = [
-                    analysisId  : job.analysisId.toInteger(),
-                    application : application,
-                    majorVersion: majorVersion,
-                    minorVersion: minorVersion,
-                    upi         : upi,
-                    methodAc    : methodAc,
-                    modelAc     : modelAc,
-                    seqScore    : seqScore,
-                    seqEvalue   : seqEvalue,
-                ]
-                match.get("locations").each { location ->
-                    (formattedMatch, formattedSite) = formatter(matchMetaData, location)
-                    matchValues << formattedMatch
-                    if (formattedSite) {
-                        siteValues << formattedSite
-                    }
-                    if (matchValues.size() == db.INSERT_SIZE) {
-                        matchPersister(matchValues, job.application.matchTable)
-                        matchValues.clear()
-                    }
-                    if (siteValues.size() == db.INSERT_SIZE) {
-                        sitePersister(siteValues, job.application.siteTable)
-                        siteValues.clear()
-                    }
+    // don't put inside a try/catch, we want the error to cause the process to end and mark the job as failed
+    streamJson(matches_path.toString(), mapper) { results -> // streaming only the "results" Json Array
+        def upi = results.get("xref")[0].get("id").asText()
+        results.get("matches").each { match ->
+            def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
+            matchMetaData = [
+                analysisId  : job.analysisId.toInteger(),
+                application : application,
+                majorVersion: majorVersion,
+                minorVersion: minorVersion,
+                upi         : upi,
+                methodAc    : methodAc,
+                modelAc     : modelAc,
+                seqScore    : seqScore,
+                seqEvalue   : seqEvalue,
+            ]
+            match.get("locations").each { location ->
+                (formattedMatch, formattedSite) = formatter(matchMetaData, location)
+                matchValues << formattedMatch
+                if (formattedSite) {
+                    siteValues << formattedSite
+                }
+                if (matchValues.size() == db.INSERT_SIZE) {
+                    matchPersister(matchValues, job.application.matchTable)
+                    matchValues.clear()
+                }
+                if (siteValues.size() == db.INSERT_SIZE) {
+                    sitePersister(siteValues, job.application.siteTable)
+                    siteValues.clear()
                 }
             }
         }
+    }
 
-        if (!matchValues.isEmpty()) {
-            matchPersister(matchValues, job.application.matchTable)
-            matchValues.clear()
-        }
-        if (siteValues.size() == db.INSERT_SIZE) {
-            sitePersister(siteValues, job.application.siteTable)
-            siteValues.clear()
-        }
-    } catch (Exception e) {
-        println "Error persisting results for ${application}: ${e}\nCause: ${e.getCause()}"
-        e.printStackTrace()
+    if (!matchValues.isEmpty()) {
+        matchPersister(matchValues, job.application.matchTable)
+        matchValues.clear()
+    }
+    if (siteValues.size() == db.INSERT_SIZE) {
+        sitePersister(siteValues, job.application.siteTable)
+        siteValues.clear()
     }
 
     db.close()
