@@ -55,7 +55,7 @@ process LOG_JOBS {
             jobMap.job.analysisId,
             jobMap.job.upiFrom,
             jobMap.job.upiTo,
-            jobMap.job.createdTime,
+            java.sql.Timestamp.valueOf(jobMap.job.createdTime),
             startTime,
             endTime,
             maxMemory,
@@ -78,41 +78,51 @@ def getSlurmJobData(String slurm_id_file, int analysis_id) {
     def limMemory = null // int
     def cpuTime   = null // int
 
+    def batchLine = null
+    def mainJobLine = null
+
     if (!slurm_id_file) {
         [startTime, endTime, maxMemory, limMemory, cpuTime]
     }
 
-    slurmId = new File(slurm_id_file).text
+    slurmId = new File(slurm_id_file).text.trim()
     def cmd = "sacct -j ${slurmId} --format=JobID,ReqMem,MaxRSS,Elapsed,Start,End,TotalCPU --parsable2"
     def process = cmd.execute()
     process.waitFor()
     def stdout = process.text.trim().readLines()
     // Skip header
     def dataLines = stdout.findAll { it && !it.startsWith("JobID") }
-    // Filter lines matching the batch job pattern
-    def batchLines = dataLines.findAll { it.split("\\|")[0] ==~ /.*\.ba.*/ }
-    // Sort batch lines by start time (field index 4)
-    def sortedBatchLines = batchLines.sort { a, b ->
-        def startA = java.sql.Timestamp.valueOf(a.split("\\|")[4].replace("T", " "))
-        def startB = java.sql.Timestamp.valueOf(b.split("\\|")[4].replace("T", " "))
-        return startB <=> startA  // descending order
-    }
-    // Pick the latest one
-    batchLine = sortedBatchLines ? sortedBatchLines[0] : null
+    // Get the batch line (e.g. ends with .batch or contains .ba)
+    batchLine = dataLines.find { it.split("\\|")[0] ==~ /.*\.ba.*/ }
+    // Get the main job line (exact match with slurmId, no suffix)
+    mainJobLine = dataLines.find { it.split("\\|")[0] == slurmId }
     
-    if (batchLine) {
-        def fields = batchLine.split("\\|")
-        startTime  = java.sql.Timestamp.valueOf(fields[4].replace("T", " "))
-        endTime    = java.sql.Timestamp.valueOf(fields[5].replace("T", " "))
-        maxMemory  = fields[2]  // maxRss
-        limMemory  = fields[1]  // ReqMem
-        cpuTimeStr = fields[6]  // TotalCPU
-        cpuTime    = parseTime(cpuTimeStr)
+    if (batchLine && mainJobLine) {
+        mainLineFields = mainJobLine.split("\\|")
+        batchFields    = batchLine.split("\\|")
+        startTime  = java.sql.Timestamp.valueOf(batchFields[4].replace("T", " "))
+        endTime    = java.sql.Timestamp.valueOf(batchFields[5].replace("T", " "))
+        maxMemory  = parseMemory(batchFields[2])    // maxRss
+        limMemory  = parseMemory(mainLineFields[1]) // ReqMem
+        cpuTimeStr = batchFields[6]                 // TotalCPU
+        cpuTime    = parseTime(cpuTimeStr).toInteger()
     } else {
         throw new RuntimeException("SLURM batch job not found for job id: ${slurmId} (analysis id: ${analysis_id}). Cannot log this job in the ANALYSIS_JOBS table.")
     }
 
     return [startTime, endTime, maxMemory, limMemory, cpuTime]
+}
+
+def parseMemory(String memStr) {
+    memMb = null
+    if (memStr.endsWith("K")) {
+        memMb = (memStr[0..-2].toInteger() / 1024).intValue().toInteger()
+    } else if (memStr.endsWith("G")) {
+        memMb = (memStr[0..-2].toInteger() * 1024).toInteger()
+    } else {
+        throw new RuntimeException("Unsupported memory unit in '${memStr}'")
+    }
+    return memMb
 }
 
 def parseTime(String cpuTimeStr) {
