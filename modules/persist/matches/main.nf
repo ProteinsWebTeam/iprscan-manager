@@ -14,7 +14,7 @@ import groovy.json.JsonOutput
 process PERSIST_MATCHES {
     // Insert and persist the matches into ISPRO/intproscan(db)
     executor 'local'
-    errorStrategy 'ignore'
+    // errorStrategy 'ignore'
 
     input:
     tuple val(meta), val(job), val(gpu), val(slurm_id_path), val(matches_path)
@@ -39,21 +39,60 @@ process PERSIST_MATCHES {
     def sitePersister
 
     switch (application) {
+        case "antifam":
+        case "cath-gene3d":
+        case "gene3d":
+        case "cath-funfam":
+        case "funfam":
         case "ncbifam":
+        case "pfam":
+        case "pirsf":
             formatter      = this.&fmtDefaultMatches
             matchPersister = db.&persistDefaultMatches
             sitePersister  = null
+            break
+        case "coils":
+        case "phobius":
+        case "tmhmm":
+        case "deeptmhmm":
+            formatter      = this.&fmtMinimalistMatches
+            matchPersister = db.&persistMinimalistMatches
+            sitePersister  = null
+            break
+        case "cdd":
+            formatter      = this.&fmtCddMatches
+            matchPersister = db.&persistCddMatches
+            sitePersister  = db.&persistDefaultSites
+            break
+        case "hamap":
+            formatter      = this.&fmtHamapMatches
+            matchPersister = db.&persistHamapMatches
+            sitePersister  = null
+            break
+        case "mobidb lite":
+        case "mobidb-lite":
+        case "mobidb_lite":
+            break
+        case "panther":
+            break
+        case "pirsr":
+            break
+        case "prints":
+            break
+        case "prosite-patterns":
+            break
+        case "prosite-profiles":
+            break
+        case "sfld":
+            break
+        case "smart":
+            break
+        case "superfamily":
             break
         case "signalp_euk":
         case "signalp_prok":
             formatter      = this.&fmtSignalpMatches
             matchPersister = db.&persistSignalpMatches
-            sitePersister  = null
-            break
-        case "tmhmm":
-        case "deeptmhmm":
-            formatter      = this.&fmtMinimalistMatches
-            matchPersister = db.&persistMinimalistMatches
             sitePersister  = null
             break
         default:
@@ -66,6 +105,7 @@ process PERSIST_MATCHES {
     // don't put inside a try/catch, we want the error to cause the process to end and mark the job as failed
     streamJson(matches_path.toString(), mapper) { results -> // streaming only the "results" Json Array
         def upi = results.get("xref")[0].get("id").asText()
+        def seqLength = results.get("seqLength")
         results.get("matches").each { match ->
             def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
             matchMetaData = [
@@ -74,16 +114,18 @@ process PERSIST_MATCHES {
                 majorVersion: majorVersion,
                 minorVersion: minorVersion,
                 upi         : upi,
+                md5         : results.get("md5").asText(),
                 methodAc    : methodAc,
                 modelAc     : modelAc,
                 seqScore    : seqScore,
                 seqEvalue   : seqEvalue,
+                seqLength   : seqLength ? seqLength.toInteger() : null
             ]
             match.get("locations").each { location ->
-                (formattedMatch, formattedSite) = formatter(matchMetaData, location)
+                (formattedMatch, formattedSites) = formatter(matchMetaData, location)
                 matchValues << formattedMatch
-                if (formattedSite) {
-                    siteValues << formattedSite
+                if (formattedSites) {
+                    siteValues.addAll(formattedSites)
                 }
                 if (matchValues.size() == db.INSERT_SIZE) {
                     matchPersister(matchValues, job.application.matchTable)
@@ -101,7 +143,7 @@ process PERSIST_MATCHES {
         matchPersister(matchValues, job.application.matchTable)
         matchValues.clear()
     }
-    if (siteValues.size() == db.INSERT_SIZE) {
+    if (!siteValues.isEmpty()) {
         sitePersister(siteValues, job.application.siteTable)
         siteValues.clear()
     }
@@ -194,6 +236,66 @@ def fmtMinimalistMatches(Map matchMetaData, JsonNode location) {
     ]
     siteValue = null
     return [matchValue, siteValue]
+}
+
+def fmtCddMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue
+    ]
+    siteValues = []
+    upiRange = (matchMetaData.upi =~ /(UPI0+)[a-zA-Z1-9]/)[0][0]
+    println "${matchMetaData.upi} -> upiRange: ${upiRange}"
+    location.sites.each { site ->
+        site.siteLocations.each { siteLoc ->
+            siteValues << [
+                matchMetaData.analysisId,
+                upiRange,
+                matchMetaData.upi,
+                matchMetaData.md5,
+                matchMetaData.seqLength,
+                matchMetaData.application,
+                matchMetaData.methodAc,
+                location.get("start").asInt(),
+                location.get("end").asInt(),
+                site.get("numLocations").asInt(),
+                siteLoc.get("residue").asText(),
+                siteLoc.get("start").asInt(),
+                siteLoc.get("end").asInt(),
+                site.get("description").asText()
+            ]
+        }
+    }
+    return [matchValue, siteValues]
+}
+
+def fmtHamapMatches(Map matchMetaData, JsonNode location) {
+    matchValues = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        getBigDecimal(location, "score"),
+        location.get("cigarAlignment").asText()
+    ]
+    siteValues = []
+    return [matchValue, siteValues]
 }
 
 def fmtSignalpMatches(Map matchMetaData, JsonNode location) {
