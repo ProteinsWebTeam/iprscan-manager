@@ -6,8 +6,18 @@ process IMPORT_SEQUENCES {
     val max_upi
 
     exec:
-    Database iprscan_db = new Database(iprscan_conf.uri, iprscan_conf.user, iprscan_conf.password)
-    Database uniparc_db = new Database(uniparc_conf.uri, uniparc_conf.user, uniparc_conf.password)
+    Database iprscan_db = new Database(
+        iprscan_conf.uri,
+        iprscan_conf.user,
+        iprscan_conf.password,
+        iprscan_conf.engine
+    )
+    Database uniparc_db = new Database(
+        uniparc_conf.uri,
+        uniparc_conf.user,
+        uniparc_conf.password,
+        uniparc_conf.engine
+    )
 
     def currentMaxUpi = null
     if (top_up) {
@@ -22,10 +32,11 @@ process IMPORT_SEQUENCES {
     def records = []
 
     uniparc_db.iterProteins(currentMaxUpi, max_upi) { rec ->
-        records << rec
+        def (upi, timestamp, seq_short, seq_long, len, crc64, md5) = rec
+        records << [upi, timestamp, seq_short ?: clobToString(seq_long), len, crc64, md5]
         protCount += 1
 
-        if (records.size() == 10) {
+        if (records.size() == iprscan_db.INSERT_SIZE) {
             iprscan_db.insertProteins(records)
             records.clear()
         }
@@ -47,4 +58,7 @@ process IMPORT_SEQUENCES {
     iprscan_db.close()
     uniparc_db.close()
 }
-// MERGE MAIN
+
+def clobToString(clob) {
+    clob?.getCharacterStream()?.text
+}

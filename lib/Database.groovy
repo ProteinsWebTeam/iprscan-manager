@@ -42,44 +42,40 @@ class Database {
     }
 
     String getMaxUPI() { // UPI of the most recent seq in UniParc
-        def query = "SELECT MAX(UPI) FROM UNIPARC.PROTEIN"
+        def query = "SELECT MAX(UPI) FROM iprscan.protein"
         return this.sql.rows(query)[0][0]
     }
 
     void dropProteinTable() {
-        this.sql.execute("DROP TABLE UNIPARC.PROTEIN PURGE")
+        this.sql.execute("DROP TABLE IF EXISTS iprscan.protein;")
     }
 
     void buildProteinTable() {
         this.sql.execute(
             """
-            CREATE TABLE UNIPARC.PROTEIN
+            CREATE TABLE iprscab.protein
             (
-                ID NUMBER(15) NOT NULL,
-                UPI CHAR(13) NOT NULL,
-                TIMESTAMP DATE NOT NULL,
-                USERSTAMP VARCHAR2(30) NOT NULL,
-                CRC64 CHAR(16) NOT NULL,
-                LEN NUMBER(6) NOT NULL,
-                SEQ_SHORT VARCHAR2(4000),
-                SEQ_LONG CLOB,
-                MD5 VARCHAR2(32) NOT NULL
+                upi CHAR(13) NOT NULL,
+                timestamp TIMESTAMP NOT NULL,
+                sequence TEXT NOT NULL,
+                length NUMBER(6) NOT NULL,
+                crc64 CHAR(16) NOT NULL,
+                md5 VARCHAR2(32) NOT NULL
             ) NOLOGGING
             """
         )
     }
 
     void configureProteinTable() {
-        this.sql.execute("GRANT SELECT ON UNIPARC.PROTEIN TO PUBLIC")
-        this.sql.execute("CREATE UNIQUE INDEX ON UNIPARC.PROTEIN (UPI)")
+        this.sql.execute("GRANT SELECT ON iprscan.PROTEIN TO PUBLIC")
+        this.sql.execute("CREATE UNIQUE INDEX ON iprscan.PROTEIN (UPI)")
     }
 
     List<String> iterProteins(String gt = null, String le = null, Closure rowHandler) {
         String sqlQuery = """
-            SELECT ID, UPI, TIMESTAMP, USERSTAMP, CRC64, LEN, SEQ_SHORT, SEQ_LONG, MD5
+            SELECT UPI, TIMESTAMP, SEQ_SHORT, SEQ_LONG, LEN, CRC64, MD5
             FROM UNIPARC.PROTEIN
         """
-        System.out.println("GT: ${gt} LE: ${le}")
         def filters = []
         def params = [:]
         if (gt) {
@@ -90,33 +86,23 @@ class Database {
             filters << "UPI <= :le"
             params.le = le
         }
-        System.out.println("filters: ${filters}")
-        System.out.println("params: ${params}")
+
         if (filters) {
             sqlQuery += " WHERE " + filters.join(" AND ")
         }
-        System.out.println("Query: ${sqlQuery}\nParams: ${params}")
+
         this.sql.eachRow(sqlQuery, params, rowHandler)
     }
 
     void insertProteins(List<String> records) {
         String insertQuery = """
-            INSERT /*+ APPEND */ INTO UNIPARC.PROTEIN
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT /*+ APPEND */ INTO iprscan.protein
+            VALUES (?, ?, ?, ?, ?, ?)
         """
-        System.out.println("INSERT - ${records[0]} to ${records[-1]}")
-        this.sql.withBatch(insertQuery) { stmt ->
-            records.each { stmt.addBatch([
-                it.ID.toInteger(),
-                it.UPI,
-                it.TIMESTAMP,
-                it.USERSTAMP,
-                it.CRC64,
-                it.LEN.toInteger(),
-                it.SEQ_SHORT,
-                it.SEQ_LONG,
-                it.MD5
-            ]) }
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            records.each { row ->
+                preparedStmt.addBatch(row)
+            }
         }
     }
 
