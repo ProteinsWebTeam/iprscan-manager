@@ -135,20 +135,22 @@ process PERSIST_MATCHES {
         def seqLength = results.get("seqLength")
         results.get("matches").each { match ->
             def graphscan = match.get("graphscan")?.asText(null)  // returns null if key is missing
+            def ancestralNodeID = match.get("ancestralNodeID")?.asText(null)  // returns null if key is missing
             def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
             matchMetaData = [
-                analysisId  : job.analysisId.toInteger(),
-                application : application,
-                majorVersion: majorVersion,
-                minorVersion: minorVersion,
-                upi         : upi,
-                md5         : results.get("md5").asText(),
-                methodAc    : methodAc,
-                modelAc     : modelAc,
-                seqScore    : seqScore,
-                seqEvalue   : seqEvalue,
-                seqLength   : seqLength ? seqLength.toInteger() : null,
-                graphscan   : graphscan
+                analysisId     : job.analysisId.toInteger(),
+                application    : application,
+                majorVersion   : majorVersion,
+                minorVersion   : minorVersion,
+                upi            : upi,
+                md5            : results.get("md5").asText(),
+                methodAc       : methodAc,
+                modelAc        : modelAc,
+                seqScore       : seqScore,
+                seqEvalue      : seqEvalue,
+                seqLength      : seqLength ? seqLength.toInteger() : null,
+                graphscan      : graphscan,
+                ancestralNodeID: ancestralNodeID
             ]
             match.get("locations").each { location ->
                 (formattedMatch, formattedSites) = formatter(matchMetaData, location)
@@ -363,7 +365,7 @@ def fmtPantherMatches(Map matchMetaData, JsonNode location) {
         location.get("hmmLength").asInt(),
         location.get("envelopeStart").asInt(),
         location.get("envelopeEnd").asInt(),
-        location.get("ancestralNodeID") // is not in the i6 output
+        matchMetaData.ancestralNodeID
     ]
     siteValues = null
     return [matchValue, siteValues]

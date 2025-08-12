@@ -332,9 +332,9 @@ class Database {
             analysis_id, analysis_name, relno_major, relno_minor,
             upi, method_ac, model_ac, seq_start, seq_end, fragments,
             seqscore, seqevalue, hmm_bounds, hmm_start, hmm_end,
-            hmm_length, env_start, env_end, score, evalue, an_node_id
+            hmm_length, env_start, env_end, an_node_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
             values.each { row ->
