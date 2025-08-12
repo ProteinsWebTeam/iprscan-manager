@@ -36,11 +36,6 @@ The IPM pipeline relies on one configuration file. A template can be found in
             * user
             * password
             * engine: `postgresql`
-        * **uniparc**: _configuration for the uniparc schema - this connects to the current ISPRO/DEV/TST oracle db_
-            * uri (`@Host:Port/Service`)
-            * user
-            * password
-            * engine: `oracle`
     * **uniparc**: _configuration for the `UATST` uniparc database (the read-only database)_
         * uri (`@Host:Port/Service`)
         * user
