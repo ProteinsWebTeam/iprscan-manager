@@ -122,27 +122,23 @@ class Database {
 
     List<Map> getPartitions(schema, table) {
         String query ="""
-            SELECT P.PARTITION_NAME, P.PARTITION_POSITION, P.HIGH_VALUE,
-            K.COLUMN_NAME, K.COLUMN_POSITION
-            FROM ALL_TAB_PARTITIONS P
-            INNER JOIN ALL_PART_KEY_COLUMNS K
-            ON P.TABLE_OWNER = K.OWNER 
-            AND P.TABLE_NAME = K.NAME
-            WHERE P.TABLE_OWNER = ? 
-            AND P.TABLE_NAME = ?
+            SELECT c.relname AS partition_name,
+                i.inhseqno AS partition_position
+            FROM pg_inherits i
+            JOIN pg_class c ON i.inhrelid = c.oid
+            JOIN pg_class p ON i.inhparent = p.oid
+            JOIN pg_namespace n ON p.relnamespace = n.oid
+            WHERE n.nspname = ?
+            AND p.relname = ?
+            ORDER BY i.inhseqno
         """
         Map<String, Map> partitions = [:]
 
         this.sql.eachRow(query, [schema.toUpperCase(), table.toUpperCase()]) { row ->
-            String partName = row.PARTITION_NAME
-            if (partitions.containsKey(partName)) {
-                throw new Exception("Multi-column partitioning keys are not supported")
-            }
+            String partName = row.partition_name
             partitions[partName] = [
                     name    : partName,
                     position: row.PARTITION_POSITION,
-                    value   : row.HIGH_VALUE,
-                    column  : row.COLUMN_NAME
             ]
         }
 
