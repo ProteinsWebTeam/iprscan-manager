@@ -66,6 +66,8 @@ class Application { // Represents a member database release
                 relMajor = parts[0]
                 relMinor = parts[1]
             }
+        } else {
+            relMajor = this.version
         }
         
         return [relMajor.toInteger(), relMinor]

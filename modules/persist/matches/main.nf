@@ -14,7 +14,7 @@ import groovy.json.JsonOutput
 process PERSIST_MATCHES {
     // Insert and persist the matches into ISPRO/intproscan(db)
     executor 'local'
-    errorStrategy 'ignore'
+    // errorStrategy 'ignore'
 
     input:
     tuple val(meta), val(job), val(gpu), val(slurm_id_path), val(matches_path)
@@ -39,21 +39,87 @@ process PERSIST_MATCHES {
     def sitePersister
 
     switch (application) {
+        case "antifam":
+        case "cath-gene3d":
+        case "gene3d":
+        case "cath-funfam":
+        case "funfam":
         case "ncbifam":
+        case "pfam":
+        case "pirsf":
             formatter      = this.&fmtDefaultMatches
             matchPersister = db.&persistDefaultMatches
+            sitePersister  = null
+            break
+        case "coils":
+        case "phobius":
+        case "tmhmm":
+        case "deeptmhmm":
+            formatter      = this.&fmtMinimalistMatches
+            matchPersister = db.&persistMinimalistMatches
+            sitePersister  = null
+            break
+        case "cdd":
+            formatter      = this.&fmtCddMatches
+            matchPersister = db.&persistCddMatches
+            sitePersister  = db.&persistDefaultSites
+            break
+        case "hamap":
+            formatter      = this.&fmtHamapMatches
+            matchPersister = db.&persistHamapMatches
+            sitePersister  = null
+            break
+        case "mobidb lite":
+        case "mobidb-lite":
+        case "mobidb_lite":
+            formatter      = this.&fmtMobidbliteMatches
+            matchPersister = db.&persistMobiDBliteMatches
+            sitePersister  = null
+            break
+        case "panther":
+            formatter      = this.&fmtPantherMatches
+            matchPersister = db.&persistPantherMatches
+            sitePersister  = null
+            break
+        case "pirsr":
+            formatter      = this.&fmtPirsrMatches
+            matchPersister = db.&persistDefaultMatches
+            sitePersister  = db.&persistDefaultSites
+            break
+        case "prints":
+            formatter      = this.&fmtPrintsMatches
+            matchPersister = db.&persistPrintsMatches
+            sitePersister  = null
+            break
+        case "prosite-patterns":
+            formatter      = this.&fmtPrositePatternsMatches
+            matchPersister = db.&persistPrositePatternsMatches
+            sitePersister  = null
+            break
+        case "prosite-profiles":
+            formatter      = this.&fmtPrositeProfilesMatches
+            matchPersister = db.&persistPrositeProfileMatches
+            sitePersister  = null
+            break
+        case "sfld":
+            formatter      = this.&fmtSfldMatches
+            matchPersister = db.&persistDefaultMatches
+            sitePersister  = db.&persistDefaultSites
+            break
+        case "smart":
+            formatter      = this.&fmtSmartMatches
+            matchPersister = db.&persistSmartMatches
+            sitePersister  = null
+            break
+        case "superfamily":
+            formatter      = this.&fmtSuperfamilyMatches
+            matchPersister = db.&persistSuperfamilyMatches
             sitePersister  = null
             break
         case "signalp_euk":
         case "signalp_prok":
             formatter      = this.&fmtSignalpMatches
             matchPersister = db.&persistSignalpMatches
-            sitePersister  = null
-            break
-        case "tmhmm":
-        case "deeptmhmm":
-            formatter      = this.&fmtMinimalistMatches
-            matchPersister = db.&persistMinimalistMatches
             sitePersister  = null
             break
         default:
@@ -66,24 +132,31 @@ process PERSIST_MATCHES {
     // don't put inside a try/catch, we want the error to cause the process to end and mark the job as failed
     streamJson(matches_path.toString(), mapper) { results -> // streaming only the "results" Json Array
         def upi = results.get("xref")[0].get("id").asText()
+        def seqLength = results.get("seqLength")
         results.get("matches").each { match ->
+            def graphscan = match.get("graphscan")?.asText(null)  // returns null if key is missing
+            def ancestralNodeID = match.get("ancestralNodeID")?.asText(null)  // returns null if key is missing
             def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
             matchMetaData = [
-                analysisId  : job.analysisId.toInteger(),
-                application : application,
-                majorVersion: majorVersion,
-                minorVersion: minorVersion,
-                upi         : upi,
-                methodAc    : methodAc,
-                modelAc     : modelAc,
-                seqScore    : seqScore,
-                seqEvalue   : seqEvalue,
+                analysisId     : job.analysisId.toInteger(),
+                application    : application,
+                majorVersion   : majorVersion,
+                minorVersion   : minorVersion,
+                upi            : upi,
+                md5            : results.get("md5").asText(),
+                methodAc       : methodAc,
+                modelAc        : modelAc,
+                seqScore       : seqScore,
+                seqEvalue      : seqEvalue,
+                seqLength      : seqLength ? seqLength.toInteger() : null,
+                graphscan      : graphscan,
+                ancestralNodeID: ancestralNodeID
             ]
             match.get("locations").each { location ->
-                (formattedMatch, formattedSite) = formatter(matchMetaData, location)
+                (formattedMatch, formattedSites) = formatter(matchMetaData, location)
                 matchValues << formattedMatch
-                if (formattedSite) {
-                    siteValues << formattedSite
+                if (formattedSites) {
+                    siteValues.addAll(formattedSites)
                 }
                 if (matchValues.size() == db.INSERT_SIZE) {
                     matchPersister(matchValues, job.application.matchTable)
@@ -101,7 +174,7 @@ process PERSIST_MATCHES {
         matchPersister(matchValues, job.application.matchTable)
         matchValues.clear()
     }
-    if (siteValues.size() == db.INSERT_SIZE) {
+    if (!siteValues.isEmpty()) {
         sitePersister(siteValues, job.application.siteTable)
         siteValues.clear()
     }
@@ -191,6 +264,303 @@ def fmtMinimalistMatches(Map matchMetaData, JsonNode location) {
         location.get("start").asInt(),
         location.get("end").asInt(),
         ftmFragments(location.get('location-fragments'))
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
+}
+
+def fmtCddMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue
+    ]
+    siteValues = []
+    location.sites.each { site ->
+        site.siteLocations.each { siteLoc ->
+            siteValues << [
+                matchMetaData.analysisId,
+                matchMetaData.upi,
+                matchMetaData.md5,
+                matchMetaData.seqLength,
+                matchMetaData.application,
+                matchMetaData.methodAc,
+                location.get("start").asInt(),
+                location.get("end").asInt(),
+                site.get("numLocations").asInt(),
+                siteLoc.get("residue").asText(),
+                siteLoc.get("start").asInt(),
+                siteLoc.get("end").asInt(),
+                site.get("description").asText()
+            ]
+        }
+    }
+    return [matchValue, siteValues]
+}
+
+def fmtHamapMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        getBigDecimal(location, "score"),
+        location.get("cigarAlignment").asText()
+    ]
+    siteValues = null
+    return [matchValue, siteValues]
+}
+
+def fmtMobidbliteMatches(Map matchMetaData, JsonNode location) {
+    def seqFeature = location.get("sequence-feature")
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        seqFeature ? seqFeature.asText() : "-"
+    ]
+    siteValues = null
+    return [matchValue, siteValues]
+}
+
+def fmtPantherMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue,
+        reverseHmmBounds(location.get("hmmBounds").asText()),
+        location.get("hmmStart").asInt(),
+        location.get("hmmEnd").asInt(),
+        location.get("hmmLength").asInt(),
+        location.get("envelopeStart").asInt(),
+        location.get("envelopeEnd").asInt(),
+        matchMetaData.ancestralNodeID
+    ]
+    siteValues = null
+    return [matchValue, siteValues]
+}
+
+def fmtPirsrMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue,
+        reverseHmmBounds(location.get("hmmBounds").asText()),
+        location.get("hmmStart").asInt(),
+        location.get("hmmEnd").asInt(),
+        location.get("hmmLength").asInt(),
+        location.get("envelopeStart").asInt(),
+        location.get("envelopeEnd").asInt(),
+        getBigDecimal(location, "score"),
+        getBigDecimal(location, "evalue")
+    ]
+    siteValues = []
+    location.sites.each { site ->
+        site.siteLocations.each { siteLoc ->
+            siteValues << [
+                matchMetaData.analysisId,
+                matchMetaData.upi,
+                matchMetaData.md5,
+                matchMetaData.seqLength,
+                matchMetaData.application,
+                matchMetaData.methodAc,
+                location.get("start").asInt(),
+                location.get("end").asInt(),
+                site.get("numLocations").asInt(),
+                siteLoc.get("residue").asText(),
+                siteLoc.get("start").asInt(),
+                siteLoc.get("end").asInt(),
+                site.get("description").asText()
+            ]
+        }
+    }
+    return [matchValue, siteValues]
+}
+
+def fmtPrintsMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue,
+        location.get("motifNumber").asInt(),
+        getBigDecimal(location, "pvalue"),
+        matchMetaData.graphscan
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
+}
+
+def fmtPrositePatternsMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        "ProSitePatterns",
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        0,
+        location.get("cigarAlignment").asText()
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
+}
+
+def fmtPrositeProfilesMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        "ProSiteProfiles",
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        location.get("cigarAlignment").asText()
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
+}
+
+def fmtSfldMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue,
+        reverseHmmBounds(location.get("hmmBounds").asText()),
+        location.get("hmmStart").asInt(),
+        location.get("hmmEnd").asInt(),
+        location.get("hmmLength").asInt(),
+        location.get("envelopeStart").asInt(),
+        location.get("envelopeEnd").asInt(),
+        getBigDecimal(location, "score"),
+        getBigDecimal(location, "evalue")
+    ]
+    siteValues = []
+    location.sites.each { site ->
+        site.siteLocations.each { siteLoc ->
+            siteValues << [
+                matchMetaData.analysisId,
+                matchMetaData.upi,
+                matchMetaData.md5,
+                matchMetaData.seqLength,
+                matchMetaData.application,
+                matchMetaData.methodAc,
+                location.get("start").asInt(),
+                location.get("end").asInt(),
+                site.get("numLocations").asInt(),
+                siteLoc.get("residue").asText(),
+                siteLoc.get("start").asInt(),
+                siteLoc.get("end").asInt(),
+                site.get("description").asText()
+            ]
+        }
+    }
+    return [matchValue, siteValues]
+}
+
+def fmtSmartMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue,
+        reverseHmmBounds(location.get("hmmBounds").asText()),
+        location.get("hmmStart").asInt(),
+        location.get("hmmEnd").asInt(),
+        location.get("hmmLength").asInt(),
+        getBigDecimal(location, "score"),
+        getBigDecimal(location, "evalue")
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
+}
+
+def fmtSuperfamilyMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqEvalue,
+        location.get("hmmLength").asInt()
     ]
     siteValue = null
     return [matchValue, siteValue]
