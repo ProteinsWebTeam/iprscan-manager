@@ -256,10 +256,10 @@ class Database {
 
     void persistDefaultSites(values, siteTable) {
         String insertQuery = """INSERT INTO iprscan.${siteTable} (
-            analysis_id, upi_range, upi, md5, seq_length, analysis_name, method_ac,
+            analysis_id, upi, md5, seq_length, analysis_name, method_ac,
             loc_start, loc_end, num_sites, residue, res_start, res_end, description
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
             values.each { row ->
