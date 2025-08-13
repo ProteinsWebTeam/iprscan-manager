@@ -385,7 +385,7 @@ def fmtPirsrMatches(Map matchMetaData, JsonNode location) {
         ftmFragments(location.get('location-fragments')),
         matchMetaData.seqScore,
         matchMetaData.seqEvalue,
-        reverseHmmBounds(location.get("hmmBounds").asText()),
+        null,  // do not report hmmbounds
         location.get("hmmStart").asInt(),
         location.get("hmmEnd").asInt(),
         location.get("hmmLength").asInt(),
@@ -490,7 +490,7 @@ def fmtSfldMatches(Map matchMetaData, JsonNode location) {
         ftmFragments(location.get('location-fragments')),
         matchMetaData.seqScore,
         matchMetaData.seqEvalue,
-        reverseHmmBounds(location.get("hmmBounds").asText()),
+        null,  // do not report hmm-bounds
         location.get("hmmStart").asInt(),
         location.get("hmmEnd").asInt(),
         location.get("hmmLength").asInt(),
