@@ -163,29 +163,21 @@ class Database {
         Integer offset = 0
         Integer batchSize = 1000
         String query = """
-        SELECT UPI, SEQ_SHORT, SEQ_LONG
+        SELECT upi, sequence
         FROM (
-            SELECT UPI, SEQ_SHORT, SEQ_LONG, ROW_NUMBER() OVER (ORDER BY UPI) AS row_num
-            FROM UNIPARC.PROTEIN
-            WHERE UPI BETWEEN ? AND ?
+            SELECT upi, sequence, ROW_NUMBER() OVER (ORDER BY UPI) AS row_num
+            FROM iprscan.protein
+            WHERE upi BETWEEN ? AND ?
         ) WHERE row_num BETWEEN ? AND ?
         """
 
         while (true) {
             def batch = this.sql.rows(query, [upi_from, upi_to, offset + 1, offset + batchSize])
             for (row: batch) {
-                def upi = row.UPI
-                def seq = row.SEQ_SHORT ?: row.SEQ_LONG
-
-                // Convert Oracle CLOB to String if necessary - needed for very long seqs
-                if (seq instanceof CLOB) {
-                    seq = seq.getSubString(1, (int) seq.length())
-                } else {
-                    seq = seq.toString()
-                }
-
-                if (seq) {
-                    writer.writeLine(">${upi}")
+                def upi = row.upi
+                def seq = row.sequence
+                if (row.sequence) {
+                    writer.writeLine(">${row.upi}")
                     for (int i = 0; i < seq.length(); i += 60) {
                         int end = Math.min(i + 60, seq.length())
                         writer.writeLine(seq.substring(i, end))

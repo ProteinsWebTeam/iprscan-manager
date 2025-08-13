@@ -27,12 +27,11 @@ The IPM pipeline relies on one configuration file. A template can be found in
 > the `interproscan.workdir` field to a suitable location.
 
 * **databases** - _configure database connections_
-    * **intprscan**: _configuration for the interproscan database_
-        * **intprscan**: _configuration for the intprscan schema_
-            * uri (`//Host:Port/Service`)
-            * user
-            * password
-            * engine: `postgresql`
+    * **intprscan**: _configuration for the postgre-sql interproscan database intprscan schema_
+        * uri (`//Host:Port/Service`)
+        * user
+        * password
+        * engine: `postgresql`
     * **uniparc**: _configuration for the `UATST` uniparc database (the read-only database)_
         * uri (`@Host:Port/Service`)
         * user

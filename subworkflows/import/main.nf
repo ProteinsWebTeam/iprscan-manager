@@ -15,7 +15,7 @@ workflow IMPORT {
     db_config = INIT_PIPELINE.out.dbConfig.val
 
     IMPORT_SEQUENCES(
-        db_config["intprscan-intprscan"],
+        db_config["intprscan"],
         db_config["uniparc"],
         top_up,
         max_upi
