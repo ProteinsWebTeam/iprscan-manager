@@ -14,7 +14,7 @@ import groovy.json.JsonOutput
 process PERSIST_MATCHES {
     // Insert and persist the matches into ISPRO/intproscan(db)
     executor 'local'
-    // errorStrategy 'ignore'
+    errorStrategy 'ignore'
 
     input:
     tuple val(meta), val(job), val(gpu), val(slurm_id_path), val(matches_path)
