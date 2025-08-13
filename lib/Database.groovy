@@ -164,23 +164,20 @@ class Database {
         Integer batchSize = 1000
         String query = """
         SELECT upi, sequence
-        FROM (
-            SELECT upi, sequence, ROW_NUMBER() OVER (ORDER BY UPI) AS row_num
-            FROM iprscan.protein
-            WHERE upi BETWEEN ? AND ?
-        ) WHERE row_num BETWEEN ? AND ?
+        FROM iprscan.protein
+        WHERE upi BETWEEN ? AND ?
+        ORDER BY upi
+        LIMIT ? OFFSET ?
         """
 
         while (true) {
-            def batch = this.sql.rows(query, [upi_from, upi_to, offset + 1, offset + batchSize])
+            def batch = this.sql.rows(query, [upi_from, upi_to, batchSize, offset])
             for (row: batch) {
-                def upi = row.upi
-                def seq = row.sequence
                 if (row.sequence) {
                     writer.writeLine(">${row.upi}")
-                    for (int i = 0; i < seq.length(); i += 60) {
-                        int end = Math.min(i + 60, seq.length())
-                        writer.writeLine(seq.substring(i, end))
+                    for (int i = 0; i < row.sequence.length(); i += 60) {
+                        int end = Math.min(i + 60, row.sequence.length())
+                        writer.writeLine(row.sequence.substring(i, end))
                     }
                     seqCount += 1
                 }
