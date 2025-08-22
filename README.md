@@ -1,6 +1,9 @@
 > [!CAUTION]
 > The InterProScan Production Manager is currently under active development and is not yet stable enough for a full release.
 
+> [!IMPORTANT]
+> Postgre-sql support is provided on the [`postgre-sql` branch](https://github.com/ProteinsWebTeam/iprscan-manager/pull/7).
+
 # InterProScan Production Manager (IPM)
 
 A Nextflow pipeline to coordinate the calculation, import and cleaning of InterProScan matches for the InterPro database.
@@ -27,7 +30,7 @@ The IPM pipeline relies on one configuration file. A template can be found in
 > the `interproscan.workdir` field to a suitable location.
 
 * **databases** - _configure database connections_
-    * **intprscan**: _configuration for the postgre-sql interproscan database intprscan schema_
+    * **intprscan**: _configuration for the postgre-sql interproscan database_
         * uri (`//Host:Port/Service`)
         * user
         * password

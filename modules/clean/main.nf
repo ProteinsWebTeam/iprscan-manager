@@ -4,17 +4,22 @@ process CLEAN_OBSOLETE_DATA {
     val analysis_ids
 
     exec:
-    Database db = new Database(iprscan_conf.uri, iprscan_conf.user, iprscan_conf.password)
+    Database db = new Database(
+        iprscan_conf.uri,
+        iprscan_conf.user,
+        iprscan_conf.password,
+        iprscan_conf.engine
+    )
 
     def activeAnalysesRows = db.getAnalyses()
     def analysis2maxUpi = [:]                    // analysis id : max UPI
     def table2analyses = [:].withDefault { [] }  // table: [analysis ids]
     activeAnalysesRows.each { analysis ->
-        analysis2maxUpi[analysis.ID] = analysis.MAX_UPI
+        analysis2maxUpi[analysis.id] = analysis.max_upi
 
-        [analysis.MATCH_TABLE, analysis.SITE_TABLE].each { table ->
+        [analysis.match_table, analysis.site_table].each { table ->
             if (table) {
-                table2analyses[table] << analysis.ID
+                table2analyses[table] << analysis.id
             }
         }
     }
@@ -26,32 +31,42 @@ process CLEAN_OBSOLETE_DATA {
     def jobCount = null
     tables.each { table ->
         table = table.toUpperCase()
-        def partitions = db.getPartitions("IPRSCAN", table)
+        def partitions = db.getPartitions(table)
 
-        partitions.each { part ->
-            if (part.value == "DEFAULT") {
+        partitions.each { child_name, part_data ->
+            def bound = part_data.partition_bound?.toUpperCase().trim()
+
+            if (bound in ["default", "default_pkey"]) {
                 return
             }
-            analysisId = part.value.toInteger()
+
+            def matcher = bound =~ /FOR VALUES IN \((\d+)\)/
+            if (matcher.matches()) {
+                analysisId = matcher[0][1] as Integer
+            } else {
+                println "Error: Unexpected partition_bound format for child table ${child_name} — expected 'FOR VALUES IN (X)', got '${part_data.partition_bound}'"
+                return
+            }
+
             maxUpi = analysis2maxUpi[analysisId]
 
             if (analysis_ids && !analysis_ids.contains(analysisId)) {
                 return
             } else if (!analysis2maxUpi.containsKey(analysisId)) {
                 actions << [
-                   String.format("  - analysis ID %s, partition %-20s: delete data", analysisId, part['name']),
-                   [[ String.format("ALTER TABLE %s DROP PARTITION %s", table, part['name']), [] ]]
+                   String.format("  - analysis ID %s, partition %-20s: delete data", analysisId, child_name),
+                   [[ String.format("DROP TABLE %s CASCADE", child_name), [] ]]
                ]
             } else if (!table2analyses[table].contains(analysisId)) {
                 actions << [
-                   String.format("  - analysis ID %s, partition %-20s: delete data", analysisId, part['name']),
-                   [[ String.format("ALTER TABLE %s DROP PARTITION %s", table, part['name']), [] ]]
+                   String.format("  - analysis ID %s, partition %-20s: delete data", analysisId, child_name),
+                   [[ String.format("DROP TABLE %s CASCADE", child_name), [] ]]
                ]
             } else if (maxUpi) {
                 jobCount = db.getJobCount(analysisId, maxUpi)
                 if (jobCount > 0) {
                     actions << [
-                        String.format("  - analysis ID %s, partition %-20s: delete jobs/data > %s", analysisId, part['name'], maxUpi),
+                        String.format("  - analysis ID %s, partition %-20s: delete jobs/data > %s", analysisId, child_name, maxUpi),
                         [
                             [
                                 """
@@ -65,7 +80,7 @@ process CLEAN_OBSOLETE_DATA {
                                 String.format("""
                                 DELETE FROM %s PARTITION (%s)
                                 WHERE UPI_FROM > ?
-                                """.stripIndent(), table, part['name']),
+                                """.stripIndent(), table, child_name),
                                 [maxUpi]
                             ]
                         ]
@@ -73,14 +88,14 @@ process CLEAN_OBSOLETE_DATA {
                 }
             } else {
                 actions << [
-                    String.format("  - analysis ID %s, partition %-20s: delete jobs/data", analysisId, part['name']),
+                    String.format("  - analysis ID %s, partition %-20s: delete jobs/data", analysisId, child_name),
                     [
                         [
-                            "DELETE FROM IPRSCAN.ANALYSIS_JOBS WHERE ANALYSIS_ID = ?",
+                            "DELETE FROM iprscan.analysis_jobs WHERE analysis_id = ?",
                             [analysisId]
                         ],
                         [
-                            String.format("ALTER TABLE %s TRUNCATE PARTITION %s", table, part['name']),
+                            String.format("TRUNCATE TABLE %s", child_name),
                             []
                         ]
                     ]
@@ -104,7 +119,7 @@ process CLEAN_OBSOLETE_DATA {
                 }
             }
         } else {
-            println "Canceled"
+            println "Cancelled"
         }
     } else {
         println "No obsolete data to clean"

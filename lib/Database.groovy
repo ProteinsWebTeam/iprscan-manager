@@ -120,33 +120,30 @@ class Database {
         return this.sql.rows(query)
     }
 
-    List<Map> getPartitions(schema, table) {
+    Map<String, Map> getPartitions(table_name) {
+        // The parition bound is "DEFAULT" or "FOR VALUES IN ($analysis_id)"
         String query ="""
-            SELECT P.PARTITION_NAME, P.PARTITION_POSITION, P.HIGH_VALUE,
-            K.COLUMN_NAME, K.COLUMN_POSITION
-            FROM ALL_TAB_PARTITIONS P
-            INNER JOIN ALL_PART_KEY_COLUMNS K
-            ON P.TABLE_OWNER = K.OWNER 
-            AND P.TABLE_NAME = K.NAME
-            WHERE P.TABLE_OWNER = ? 
-            AND P.TABLE_NAME = ?
+            SELECT
+                p.relname parent_name,
+                c.relname child_name,
+                pg_get_expr(c.relpartbound, c.oid) AS partition_bound
+            FROM pg_class p
+            JOIN pg_inherits i ON p.oid = i.inhparent
+            JOIN pg_class c ON i.inhrelid = c.oid
+            WHERE c.relpartbound IS NOT NULL
+            AND p.relname = ?
+            ORDER BY parent_name, child_name;
         """
         Map<String, Map> partitions = [:]
 
-        this.sql.eachRow(query, [schema.toUpperCase(), table.toUpperCase()]) { row ->
-            String partName = row.PARTITION_NAME
-            if (partitions.containsKey(partName)) {
-                throw new Exception("Multi-column partitioning keys are not supported")
-            }
-            partitions[partName] = [
-                    name    : partName,
-                    position: row.PARTITION_POSITION,
-                    value   : row.HIGH_VALUE,
-                    column  : row.COLUMN_NAME
+        this.sql.eachRow(query, [table_name.toLowerCase()]) { row ->
+            partitions[row.child_name] = [
+                    parent         : row.parent_name,
+                    partition_bound: row.partition_bound,
             ]
         }
 
-        return partitions.values().sort { it.position }
+        return partitions
     }
 
     Integer getJobCount(Integer analysis_id, String max_upi) {
