@@ -120,7 +120,7 @@ class Database {
         return this.sql.rows(query)
     }
 
-    Map<String, Map> getPartitions(schema, table) {
+    Map<String, Map> getPartitions(table_name) {
         // The parition bound is "DEFAULT" or "FOR VALUES IN ($analysis_id)"
         String query ="""
             SELECT
@@ -131,13 +131,12 @@ class Database {
             JOIN pg_inherits i ON p.oid = i.inhparent
             JOIN pg_class c ON i.inhrelid = c.oid
             WHERE c.relpartbound IS NOT NULL
-            AND n.nspname = ?
-            AND parent_name = ?
+            AND p.relname = ?
             ORDER BY parent_name, child_name;
         """
         Map<String, Map> partitions = [:]
 
-        this.sql.eachRow(query, [schema.toLowerCase(), table.toLowerCase()]) { row ->
+        this.sql.eachRow(query, [table_name.toLowerCase()]) { row ->
             partitions[row.child_name] = [
                     parent         : row.parent_name,
                     partition_bound: row.partition_bound,
