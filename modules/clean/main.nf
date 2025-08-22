@@ -33,12 +33,20 @@ process CLEAN_OBSOLETE_DATA {
         table = table.toUpperCase()
         def partitions = db.getPartitions("iprscan", table)
 
-        partitions.each { part ->
-            if (part.endswith("default") || part.endswith("default_pkey")) {
+        partitions.each { child_name, part_data ->
+            def bound = part_data.partition_bound?.toLowerCase()
+
+            if (bound in ["default", "default_pkey"]) {
                 return
             }
 
-            analysisId = part.value.toInteger()
+            def matcher = bound =~ /FOR VALUES IN \((\d+)\)/
+            if (matcher.matches()) {
+                analysisId = matcher[0][1] as Integer
+            } else {
+                println "Error: Unexpected partition_bound format — expected 'FOR VALUES IN (X)', got '${part_data.partition_bound}'"
+            }
+
             maxUpi = analysis2maxUpi[analysisId]
 
             if (analysis_ids && !analysis_ids.contains(analysisId)) {
@@ -85,6 +93,7 @@ process CLEAN_OBSOLETE_DATA {
                             "DELETE FROM iprscan.analysis_jobs WHERE analysis_id = ?",
                             [analysisId]
                         ],
+                        [
                             String.format("TRUNCATE TABLE %s", part['name']),
                             []
                         ]
@@ -109,7 +118,7 @@ process CLEAN_OBSOLETE_DATA {
                 }
             }
         } else {
-            println "Canceled"
+            println "Cancelled"
         }
     } else {
         println "No obsolete data to clean"

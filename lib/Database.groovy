@@ -120,29 +120,31 @@ class Database {
         return this.sql.rows(query)
     }
 
-    List<Map> getPartitions(schema, table) {
+    Map<String, Map> getPartitions(schema, table) {
+        // The parition bound is "DEFAULT" or "FOR VALUES IN ($analysis_id)"
         String query ="""
-            SELECT c.relname AS partition_name,
-                i.inhseqno AS partition_position
-            FROM pg_inherits i
+            SELECT
+                p.relname parent_name,
+                c.relname child_name,
+                pg_get_expr(c.relpartbound, c.oid) AS partition_bound
+            FROM pg_class p
+            JOIN pg_inherits i ON p.oid = i.inhparent
             JOIN pg_class c ON i.inhrelid = c.oid
-            JOIN pg_class p ON i.inhparent = p.oid
-            JOIN pg_namespace n ON p.relnamespace = n.oid
-            WHERE n.nspname = ?
-            AND p.relname = ?
-            ORDER BY i.inhseqno
+            WHERE c.relpartbound IS NOT NULL
+            AND n.nspname = ?
+            AND parent_name = ?
+            ORDER BY parent_name, child_name;
         """
         Map<String, Map> partitions = [:]
 
-        this.sql.eachRow(query, [schema.toUpperCase(), table.toUpperCase()]) { row ->
-            String partName = row.partition_name
-            partitions[partName] = [
-                    name    : partName,
-                    position: row.PARTITION_POSITION,
+        this.sql.eachRow(query, [schema.toLowerCase(), table.toLowerCase()]) { row ->
+            partitions[row.child_name] = [
+                    parent         : row.parent_name,
+                    partition_bound: row.partition_bound,
             ]
         }
 
-        return partitions.values().sort { it.position }
+        return partitions
     }
 
     Integer getJobCount(Integer analysis_id, String max_upi) {
