@@ -102,9 +102,9 @@ def getSlurmJobData(String slurm_id_file, int analysis_id) {
         batchFields    = batchLine.split("\\|")
         startTime  = java.sql.Timestamp.valueOf(batchFields[4].replace("T", " "))
         endTime    = java.sql.Timestamp.valueOf(batchFields[5].replace("T", " "))
-        maxMemory  = parseMemory(batchFields[2])    // maxRss
-        limMemory  = parseMemory(mainLineFields[1]) // ReqMem
-        cpuTimeStr = batchFields[6]                 // TotalCPU
+        maxMemory  = parseMemory(batchFields[2], analysis_id, slurmId)    // maxRss
+        limMemory  = parseMemory(mainLineFields[1], analysis_id, slurmId) // ReqMem
+        cpuTimeStr = batchFields[6]                                       // TotalCPU
         cpuTime    = parseTime(cpuTimeStr).toInteger()
     } else {
         throw new RuntimeException("SLURM batch job not found for job id: ${slurmId} (analysis id: ${analysis_id}). Cannot log this job in the ANALYSIS_JOBS table.")
@@ -113,14 +113,17 @@ def getSlurmJobData(String slurm_id_file, int analysis_id) {
     return [startTime, endTime, maxMemory, limMemory, cpuTime]
 }
 
-def parseMemory(String memStr) {
+def parseMemory(String mem_str, int analysis_id, String slurm_id) {
     memMb = null
-    if (memStr.endsWith("K")) {
-        memMb = (memStr[0..-2].toInteger() / 1024).intValue().toInteger()
-    } else if (memStr.endsWith("G")) {
-        memMb = (memStr[0..-2].toInteger() * 1024).toInteger()
+    if (mem_str.endsWith("K")) {
+        memMb = (mem_str[0..-2].toInteger() / 1024).intValue().toInteger()
+    } else if (mem_str.endsWith("G")) {
+        memMb = (mem_str[0..-2].toInteger() * 1024).toInteger()
+    } else if (mem_str.endsWith("M")) {
+        memMb = mem_str.toInteger()
+        println "[Warning] - Check the recorded memory for analysis ${analysis_id}, slurm job id ${slurm_id}"
     } else {
-        throw new RuntimeException("Unsupported memory unit in '${memStr}'")
+        throw new RuntimeException("Unsupported memory unit in '${mem_str}' (analysis id: ${analysis_id}, slurm id ${slurm_id})")
     }
     return memMb
 }

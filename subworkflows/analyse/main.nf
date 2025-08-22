@@ -20,8 +20,8 @@ workflow ANALYSE {
     db_config      = INIT_PIPELINE.out.dbConfig.val       // map of interpro oracle/postrgresql db info (user, pwd, etc.)
     iprscan_config = INIT_PIPELINE.out.iprscanConfig.val  // iprscan config file, if one is provided, e.g. to run with a gpu
 
-    analyses       = GET_ANALYSES(db_config["intprscan-intprscan"])
-    all_jobs       = GET_SEQUENCES(db_config["intprscan-uniparc"], analyses)
+    analyses       = GET_ANALYSES(db_config["intprscan"])
+    all_jobs       = GET_SEQUENCES(db_config["intprscan"], analyses)
 
     // Index the jobs so we can identify successfully and failed jobs -> [[index, job, gpu[bool]], [index, job, gpu[bool]]]
     cpu_jobs    = all_jobs[0]
@@ -62,7 +62,7 @@ workflow ANALYSE {
     ch_iprscan_results = iprscan_cpu_out
         .mix(iprscan_gpu_out)
 
-    successful_jobs = PERSIST_MATCHES(ch_iprscan_results, db_config["intprscan-intprscan"])
+    successful_jobs = PERSIST_MATCHES(ch_iprscan_results, db_config["intprscan"])
         .map { t -> [t] }  // Wrap each emitted tuple in its own list
         .collect()
         .ifEmpty { [] }    // Emit an empty list if no jobs succeeded
@@ -89,6 +89,6 @@ workflow ANALYSE {
         successful_iprscan_jobs,
         all_cpu_jobs,
         all_gpu_jobs,
-        db_config["intprscan-intprscan"]
+        db_config["intprscan"]
     )
 }

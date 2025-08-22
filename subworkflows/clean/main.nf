@@ -15,7 +15,7 @@ workflow CLEAN {
     analysis_ids = INIT_PIPELINE.out.analysisIds.val
 
     CLEAN_OBSOLETE_DATA(
-        db_config['intprscan-intprscan'],
+        db_config['intprscan'],
         analysis_ids
     )
 }
