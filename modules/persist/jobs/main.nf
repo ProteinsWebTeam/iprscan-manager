@@ -81,11 +81,12 @@ def getSlurmJobData(String slurm_id_file, int analysis_id) {
     def batchLine = null
     def mainJobLine = null
 
-    if (!slurm_id_file) {
-        [startTime, endTime, maxMemory, limMemory, cpuTime]
+    try {
+        slurmId = new File(slurm_id_file).text.trim()
+    } catch (Exception e) {
+        return [startTime, endTime, maxMemory, limMemory, cpuTime]
     }
 
-    slurmId = new File(slurm_id_file).text.trim()
     def cmd = "sacct -j ${slurmId} --format=JobID,ReqMem,MaxRSS,Elapsed,Start,End,TotalCPU --parsable2"
     def process = cmd.execute()
     process.waitFor()

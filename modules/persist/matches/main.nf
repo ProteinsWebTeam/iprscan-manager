@@ -17,7 +17,7 @@ process PERSIST_MATCHES {
     errorStrategy 'ignore'
 
     input:
-    tuple val(meta), val(job), val(gpu), val(slurm_id_path), val(matches_path)
+    tuple val(meta), val(job), val(gpu), val(matches_path), val(slurm_id_path)
     val iprscan_conf
 
     output:
@@ -53,6 +53,7 @@ process PERSIST_MATCHES {
             break
         case "coils":
         case "phobius":
+        case "tmbed":
         case "tmhmm":
         case "deeptmhmm":
             formatter      = this.&fmtMinimalistMatches
@@ -128,7 +129,6 @@ process PERSIST_MATCHES {
 
     matchValues = []
     siteValues  = []
-
     // don't put inside a try/catch, we want the error to cause the process to end and mark the job as failed
     streamJson(matches_path.toString(), mapper) { results -> // streaming only the "results" Json Array
         def upi = results.get("xref")[0].get("id").asText()
