@@ -13,12 +13,15 @@ import groovy.json.JsonOutput
 
 process PERSIST_MATCHES {
     // Insert and persist the matches into ISPRO
+    executor 'local'
+    errorStrategy 'ignore'
+
     input:
-    tuple val(job), val(matches_path)
+    tuple val(meta), val(job), val(gpu), val(matches_path), val(slurm_id_path)
     val ispro_conf
 
     output:
-    tuple val(job), val(success)
+    tuple val(meta), val(job), val(gpu), val(slurm_id_path)
 
     exec:
     def uri = ispro_conf.uri

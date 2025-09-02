@@ -1,10 +1,15 @@
 // Insert and persist the job data in the IS-db (e.g. ISPRO) ANALYSIS_JOBS table
 
 process LOG_JOB {
+    executor 'local'
+
     input:
-    tuple val(job), val(persist_matches_success)
+    val successful_index_jobs           // each = tuple val(meta), val(job), val(gpu), val(slurm_id_path)
+    val successful_persist_matches_jobs // each = tuple val(meta), val(job), val(gpu), val(slurm_id_path)
+    val successful_iprscan_jobs         // each = tuple val(meta), val(job), val(gpu), val(slurm_id_path)
+    val all_cpu_jobs                    // each = tuple val(meta), val(job), val(gpu)
+    val all_gpu_jobs                    // each = tuple val(meta), val(job), val(gpu)
     val iprscan_db_conf
-    val sbatch_params
 
     exec:
     def cmd = "sacct --name=${job.jobName} --format=JobID,JobName,State,Elapsed,Start,End,TotalCPU,MaxRSS --parsable2"

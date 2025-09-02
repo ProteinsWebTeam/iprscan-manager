@@ -114,16 +114,17 @@ process CLEAN_OBSOLETE_DATA {
 }
 
 process REBUILD_INDEXES {
+    executor 'local'
     errorStrategy 'ignore'
 
     /* Prepare the InterProScan database for persisting the matches.
     When partitions have been edited or lost we need to rebuild the indexes. */
     input:
-    tuple val(job), val(matches_path)
+    tuple val(meta), val(job), val(gpu), val(matches_path), val(slurm_id_path)
     val ispro_conf
 
     output:
-    tuple val(job), val(matches_path)
+    tuple val(meta), val(job), val(gpu), val(matches_path), val(slurm_id_path)
 
     exec:
     def uri = ispro_conf.uri
