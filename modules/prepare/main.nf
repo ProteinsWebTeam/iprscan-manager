@@ -1,29 +1,32 @@
-import java.security.MessageDigest
-
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 process GET_ANALYSES {
     // Identify build a job for each analysis
+    executor 'local'
+
     input:
     val iprscan_conf
-    val job_conf
 
     output:
     val analyses
 
     exec:
-    def uri = iprscan_conf.uri
-    def user = iprscan_conf.user
-    def pswd = iprscan_conf.password
-    Database db = new Database(uri, user, pswd)
+    Database db = new Database(
+        iprscan_conf.uri,
+        iprscan_conf.user,
+        iprscan_conf.password,
+        iprscan_conf.engine
+    )
 
     // Group jobs by UPI so that we only need to write one FASTA for each unique max UPI
     analyses = [:]  // UPI: [Jobs]
     def analysis_rows = db.getAnalyses()
     for (row: analysis_rows) {
-        (maxUpi, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion) = row
-        job = new IprscanJob(analysisId.toInteger(), maxUpi, dataDir, interproVersion)
+        (maxUpi, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion, gpu) = row
+        job = new IprscanJob(analysisId.toInteger(), maxUpi, dataDir, interproVersion, gpu)
         job.application = new Application(dbName, dbVersion, matchTable, siteTable)
-        job.compileJobName(job_conf.jobPrefix)
+        job.compileJobName()
 
         if (analyses.containsKey(maxUpi)) {
             analyses[maxUpi] << job
@@ -34,21 +37,25 @@ process GET_ANALYSES {
     db.close()
 }
 
-
 process GET_SEQUENCES {
     // Get sequences to analyse. Return a list of IprscanJobs
+    executor 'local'
+
     input:
     val iprscan_conf
     val analyses
 
     output:
-    val jobs
+    val cpuJobs
+    val gpuJobs
 
     exec:
-    def uri = iprscan_conf.uri
-    def user = iprscan_conf.user
-    def pswd = iprscan_conf.password
-    Database db = new Database(uri, user, pswd)
+    Database db = new Database(
+        iprscan_conf.uri,
+        iprscan_conf.user,
+        iprscan_conf.password,
+        iprscan_conf.engine
+    )
 
     // for each UPI range (from - to) build a FASTA file of the protein sequences
     def upiTo = db.getMaxUPI()
@@ -60,12 +67,20 @@ process GET_SEQUENCES {
         fastaFiles[upiFrom] = ['fasta': fasta, 'count': seqCount, 'upiFrom': upiFrom, 'upiTo': upiTo]
     }
 
-    // assign the fasta file to each IproscanJob
-    jobs = [] // Only return the IprscanJobs
+    // assign the fasta file to each IproscanJob, and then only return the IprscanJobs
+    cpuJobs = []
+    gpuJobs = []
     fastaFiles.each { upi, data ->
         analyses[upi].each { job ->
             job.setSeqData(data['fasta'].toString(), data['count'], data['upiFrom'], data['upiTo'])
-            jobs << job
+            def now = LocalDateTime.now()
+            def formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+            job.createdTime = now.format(formatter)
+            if (job.gpu) {
+                gpuJobs << job
+            } else {
+                cpuJobs << job
+            }
         }
     }
 }

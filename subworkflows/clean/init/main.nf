@@ -4,7 +4,7 @@ workflow INIT_PIPELINE {
     analyses
 
     main:
-    (dbConfig, error) = IPM.valdidateDbConfig(database_params, ["iprscanIprscan"])
+    (dbConfig, error) = IPM.validateDbConfig(database_params, ["intprscan"])
     if (error) {
         log.error error
         exit 1

@@ -175,22 +175,24 @@ class IPM {
         return path ? [path, null] : [null, "Could not locate iprscan configuration file '${path}'"]
     }
 
-    static valdidateDbConfig(Map databaseConfig, List<String> databases) {
+    static validateDbConfig(Map databaseConfig, List<String> databases) {
+        def creds = null
         if (!databaseConfig) {
             return [null, "No database configurations provided.\nTip: Use the -c option to provide the path to a config file"]
         }
         String error = ""
         Map<String, Map> config = [:]
-        databases.each {String db ->
-            if (!databaseConfig.containsKey(db)) {
-                error += "Missing or incomplete ${db} credentials in the conf file\n"
-            } else if (!databaseConfig[db]["uri"] || !databaseConfig[db]["user"] || !databaseConfig[db]["password"]) {
-                error += "Missing or incomplete ${db} credentials in the conf file\n"
+        databases.each { String db ->
+            creds = databaseConfig.get(db, null)
+
+            if (!creds || !creds.uri || !creds.user || !creds.password || !creds.engine) {
+                error += "Missing or incomplete ${db} credentials in the conf file" + "\n"
             } else {
                 config[db] = [
-                        "uri": databaseConfig[db]["uri"],
-                        "user": databaseConfig[db]["user"],
-                        "password": databaseConfig[db]["password"]
+                    "uri"     : creds.uri,
+                    "user"    : creds.user,
+                    "password": creds.password,
+                    "engine"  : creds.engine
                 ]
             }
         }

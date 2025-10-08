@@ -5,14 +5,14 @@ workflow INIT_PIPELINE {
 
     main:
     // validate the database configurations
-    (dbConfig, error) = IPM.valdidateDbConfig(database_params, ["iprscanUniParc", "uniparc"])
+    (dbConfig, error) = IPM.validateDbConfig(database_params, ["intprscan", "uniparc"])
     if (error) {
         log.error error
         exit 1
     }
 
     if (!max_upi) {
-        log.warn "IPM will wipe the IprScan database UNIPARC.PROTEIN table and import all UniParc seqs anew"
+        log.warn "IPM will wipe the interproscan database iprscan.protein table and import all UniParc seqs anew"
     }
 
     emit:

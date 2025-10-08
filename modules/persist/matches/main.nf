@@ -12,43 +12,171 @@ import com.fasterxml.jackson.databind.node.ArrayNode
 import groovy.json.JsonOutput
 
 process PERSIST_MATCHES {
-    // Insert and persist the matches into ISPRO
+    // Insert and persist the matches into ISPRO/intproscan(db)
+    executor 'local'
+    errorStrategy 'ignore'
+
     input:
-    tuple val(job), val(matches_path)
-    val ispro_conf
+    tuple val(meta), val(job), val(gpu), val(matches_path), val(slurm_id_path)
+    val iprscan_conf
 
     output:
-    tuple val(job), val(success)
+    tuple val(meta), val(job), val(gpu), val(slurm_id_path)
 
     exec:
-    def uri = ispro_conf.uri
-    def user = ispro_conf.user
-    def pswd = ispro_conf.password
-    Database db = new Database(uri, user, pswd)
+    Database db = new Database(
+        iprscan_conf.uri,
+        iprscan_conf.user,
+        iprscan_conf.password,
+        iprscan_conf.engine
+    )
     ObjectMapper mapper = new ObjectMapper()
-    success = true
-    def memberDb = job.application.name
-    try {
-        switch (memberDb) {
-            case "ncbifam":
-                persistDefault(job, matches_path.toString(), db, mapper)
-                break
-            case "signalp_euk":
-            case "signalp_prok":
-                persistSignalp(job, matches_path.toString(), db, mapper)
-                break
-            case "tmhmm":
-            case "deeptmhmm":
-                persistMinimalist(job, matches_path.toString(), db, mapper)
-                break
-            default:
-                throw new UnsupportedOperationException("Unknown database '${memberDb}'")
+
+    def application = job.application.name
+    def (majorVersion, minorVersion) = job.application.getRelease()
+    def formatter
+    def matchPersister
+    def sitePersister
+
+    switch (application) {
+        case "antifam":
+        case "cath-gene3d":
+        case "gene3d":
+        case "cath-funfam":
+        case "funfam":
+        case "ncbifam":
+        case "pfam":
+        case "pirsf":
+            formatter      = this.&fmtDefaultMatches
+            matchPersister = db.&persistDefaultMatches
+            sitePersister  = null
+            break
+        case "coils":
+        case "phobius":
+        case "tmbed":
+        case "tmhmm":
+        case "deeptmhmm":
+            formatter      = this.&fmtMinimalistMatches
+            matchPersister = db.&persistMinimalistMatches
+            sitePersister  = null
+            break
+        case "cdd":
+            formatter      = this.&fmtCddMatches
+            matchPersister = db.&persistCddMatches
+            sitePersister  = db.&persistDefaultSites
+            break
+        case "hamap":
+            formatter      = this.&fmtHamapMatches
+            matchPersister = db.&persistHamapMatches
+            sitePersister  = null
+            break
+        case "mobidb lite":
+        case "mobidb-lite":
+        case "mobidb_lite":
+            formatter      = this.&fmtMobidbliteMatches
+            matchPersister = db.&persistMobiDBliteMatches
+            sitePersister  = null
+            break
+        case "panther":
+            formatter      = this.&fmtPantherMatches
+            matchPersister = db.&persistPantherMatches
+            sitePersister  = null
+            break
+        case "pirsr":
+            formatter      = this.&fmtPirsrMatches
+            matchPersister = db.&persistDefaultMatches
+            sitePersister  = db.&persistDefaultSites
+            break
+        case "prints":
+            formatter      = this.&fmtPrintsMatches
+            matchPersister = db.&persistPrintsMatches
+            sitePersister  = null
+            break
+        case "prosite-patterns":
+            formatter      = this.&fmtPrositePatternsMatches
+            matchPersister = db.&persistPrositePatternsMatches
+            sitePersister  = null
+            break
+        case "prosite-profiles":
+            formatter      = this.&fmtPrositeProfilesMatches
+            matchPersister = db.&persistPrositeProfileMatches
+            sitePersister  = null
+            break
+        case "sfld":
+            formatter      = this.&fmtSfldMatches
+            matchPersister = db.&persistDefaultMatches
+            sitePersister  = db.&persistDefaultSites
+            break
+        case "smart":
+            formatter      = this.&fmtSmartMatches
+            matchPersister = db.&persistSmartMatches
+            sitePersister  = null
+            break
+        case "superfamily":
+            formatter      = this.&fmtSuperfamilyMatches
+            matchPersister = db.&persistSuperfamilyMatches
+            sitePersister  = null
+            break
+        case "signalp_euk":
+        case "signalp_prok":
+            formatter      = this.&fmtSignalpMatches
+            matchPersister = db.&persistSignalpMatches
+            sitePersister  = null
+            break
+        default:
+            throw new UnsupportedOperationException("Unknown database '${application}'")
+    }
+
+    matchValues = []
+    siteValues  = []
+    // don't put inside a try/catch, we want the error to cause the process to end and mark the job as failed
+    streamJson(matches_path.toString(), mapper) { results -> // streaming only the "results" Json Array
+        def upi = results.get("xref")[0].get("id").asText()
+        def seqLength = results.get("seqLength")
+        results.get("matches").each { match ->
+            def graphscan = match.get("graphscan")?.asText(null)  // returns null if key is missing
+            def ancestralNodeID = match.get("ancestralNodeID")?.asText(null)  // returns null if key is missing
+            def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
+            matchMetaData = [
+                analysisId     : job.analysisId.toInteger(),
+                application    : application,
+                majorVersion   : majorVersion,
+                minorVersion   : minorVersion,
+                upi            : upi,
+                md5            : results.get("md5").asText(),
+                methodAc       : methodAc,
+                modelAc        : modelAc,
+                seqScore       : seqScore,
+                seqEvalue      : seqEvalue,
+                seqLength      : seqLength ? seqLength.toInteger() : null,
+                graphscan      : graphscan,
+                ancestralNodeID: ancestralNodeID
+            ]
+            match.get("locations").each { location ->
+                (formattedMatch, formattedSites) = formatter(matchMetaData, location)
+                matchValues << formattedMatch
+                if (formattedSites) {
+                    siteValues.addAll(formattedSites)
+                }
+                if (matchValues.size() == db.INSERT_SIZE) {
+                    matchPersister(matchValues, job.application.matchTable)
+                    matchValues.clear()
+                }
+                if (siteValues.size() == db.INSERT_SIZE) {
+                    sitePersister(siteValues, job.application.siteTable)
+                    siteValues.clear()
+                }
+            }
         }
-        success = true
-    } catch (Exception e) {
-        println "Error persisting results for ${memberDb}: ${e}\nCause: ${e.getCause()}"
-        e.printStackTrace()
-        success = false
+    }
+
+    if (!matchValues.isEmpty()) {
+        matchPersister(matchValues, job.application.matchTable)
+        matchValues.clear()
+    }
+    if (!siteValues.isEmpty()) {
+        sitePersister(siteValues, job.application.siteTable)
+        siteValues.clear()
     }
 
     db.close()
@@ -57,7 +185,7 @@ process PERSIST_MATCHES {
 def getBigDecimal(JsonNode match, String key) {
     if (match.has(key) && !match.get(key).isNull()) {
         try { 
-            return new BigDecimal(match.get(key).asText()).toPlainString() 
+            return new BigDecimal(match.get(key).asText())
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid number format for key '${key}': '${valueText}'", e)
         }
@@ -97,124 +225,363 @@ def reverseHmmBounds(String hmmBounds) {
     ][hmmBounds]
 }
 
-/* Update the streaming to parse the results section,
-loading one seq at a time, and store the matches for the seq */
-
-def persistDefault(IprscanJob job, String matches_path, Database db, ObjectMapper mapper) {
-    def (majorVersion, minorVersion) = job.application.getRelease()
-    def values = []
-
-    streamJson(matches_path, mapper) { results -> // streaming only the "results" Json Array
-        def upi = results.get("xref")[0].get("id").asText()
-        results.get("matches").each { match ->
-            def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
-            match.get("locations").each { location ->
-                values << [
-                    job.analysis_id.toInteger(),
-                    job.application.name,
-                    majorVersion,
-                    minorVersion,
-                    upi,
-                    methodAc,
-                    modelAc,
-                    location.get("start").asInt(),
-                    location.get("end").asInt(),
-                    ftmFragments(location.get('location-fragments')),
-                    seqScore,
-                    seqEvalue,
-                    reverseHmmBounds(location.get("hmmBounds").asText()),
-                    location.get("hmmStart").asInt(),
-                    location.get("hmmEnd").asInt(),
-                    location.get("hmmLength").asInt(),
-                    location.get("envelopeStart").asInt(),
-                    location.get("envelopeEnd").asInt(),
-                    getBigDecimal(location, "score"),
-                    getBigDecimal(location, "evalue")
-                ]
-
-                if (values.size() == db.INSERT_SIZE) {
-                    db.persistDefaultMatches(values, job.application.matchTable)
-                    values.clear()
-                }
-            }
-        }
-    }
-
-    if (!values.isEmpty()) {
-        db.persistDefaultMatches(values, job.application.matchTable)
-    }
+def fmtDefaultMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue,
+        reverseHmmBounds(location.get("hmmBounds").asText()),
+        location.get("hmmStart").asInt(),
+        location.get("hmmEnd").asInt(),
+        location.get("hmmLength").asInt(),
+        location.get("envelopeStart").asInt(),
+        location.get("envelopeEnd").asInt(),
+        getBigDecimal(location, "score"),
+        getBigDecimal(location, "evalue")
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
 }
 
-def persistMinimalist(IprscanJob job, String matches_path, Database db, ObjectMapper mapper) {
-    def (majorVersion, minorVersion) = job.application.getRelease()
-    values = []
-
-    streamJson(matches_path, mapper) { results -> // streaming only the "results" Json Array
-        def upi = results.get("xref")[0].get("id").asText()
-        results.get("matches").each { match ->
-            def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
-            match.get("locations").each { location ->
-                values << [
-                    job.analysis_id.toInteger(),
-                    job.application.name,
-                    majorVersion,
-                    minorVersion,
-                    upi,
-                    methodAc,
-                    modelAc,
-                    location.get("start").asInt(),
-                    location.get("end").asInt(),
-                    ftmFragments(location.get('location-fragments'))
-                ]
-            }
-
-            if (values.size() == db.INSERT_SIZE) {
-                db.persistMinimalistMatches(values, job.application.matchTable)
-                values.clear()
-            }
-        }
-    }
-
-    if (!values.isEmpty()) {
-        db.persistMinimalistMatches(values, job.application.matchTable)
-    }
+def fmtMinimalistMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments'))
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
 }
 
-def persistSignalp(IprscanJob job, String matches_path, Database db, ObjectMapper mapper) {
-    def (majorVersion, minorVersion) = job.application.getRelease()
-    values = []
-
-    streamJson(matches_path, mapper) { results -> // streaming only the "results" Json Array
-        def upi = results.get("xref")[0].get("id").asText()
-        results.get("matches").each { match ->
-            def (methodAc, modelAc, seqScore, seqEvalue) = getMatchData(match)
-            match.get("locations").each { location ->
-                values << [
-                    job.analysis_id.toInteger(),
-                    job.application.name.replace("signalp_prok", "SignalP_PROK").replace("signalp_euk", "SignalP_EUK"),
-                    majorVersion,
-                    minorVersion,
-                    upi,
-                    methodAc,
-                    modelAc,
-                    location.get("start").asInt(),
-                    location.get("end").asInt(),
-                    null,
-                    getBigDecimal(location, "pvalue")
-                ]
-
-                if (values.size() == db.INSERT_SIZE) {
-                    db.persistSignalpMatches(values, job.application.matchTable)
-                    values.clear()
-                }
-            }
+def fmtCddMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue
+    ]
+    siteValues = []
+    location.sites.each { site ->
+        site.siteLocations.each { siteLoc ->
+            siteValues << [
+                matchMetaData.analysisId,
+                matchMetaData.upi,
+                matchMetaData.md5,
+                matchMetaData.seqLength,
+                matchMetaData.application,
+                matchMetaData.methodAc,
+                location.get("start").asInt(),
+                location.get("end").asInt(),
+                site.get("numLocations").asInt(),
+                siteLoc.get("residue").asText(),
+                siteLoc.get("start").asInt(),
+                siteLoc.get("end").asInt(),
+                site.get("description").asText()
+            ]
         }
     }
+    return [matchValue, siteValues]
+}
 
-    if (!values.isEmpty()) {
-        db.persistSignalpMatches(values, job.application.matchTable)
-        values.clear()
+def fmtHamapMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        getBigDecimal(location, "score"),
+        location.get("cigarAlignment").asText()
+    ]
+    siteValues = null
+    return [matchValue, siteValues]
+}
+
+def fmtMobidbliteMatches(Map matchMetaData, JsonNode location) {
+    def seqFeature = location.get("sequence-feature")
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        seqFeature ? seqFeature.asText() : "-"
+    ]
+    siteValues = null
+    return [matchValue, siteValues]
+}
+
+def fmtPantherMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue,
+        reverseHmmBounds(location.get("hmmBounds").asText()),
+        location.get("hmmStart").asInt(),
+        location.get("hmmEnd").asInt(),
+        location.get("hmmLength").asInt(),
+        location.get("envelopeStart").asInt(),
+        location.get("envelopeEnd").asInt(),
+        matchMetaData.ancestralNodeID
+    ]
+    siteValues = null
+    return [matchValue, siteValues]
+}
+
+def fmtPirsrMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue,
+        null,  // do not report hmmbounds
+        location.get("hmmStart").asInt(),
+        location.get("hmmEnd").asInt(),
+        location.get("hmmLength").asInt(),
+        location.get("envelopeStart").asInt(),
+        location.get("envelopeEnd").asInt(),
+        getBigDecimal(location, "score"),
+        getBigDecimal(location, "evalue")
+    ]
+    siteValues = []
+    location.sites.each { site ->
+        site.siteLocations.each { siteLoc ->
+            siteValues << [
+                matchMetaData.analysisId,
+                matchMetaData.upi,
+                matchMetaData.md5,
+                matchMetaData.seqLength,
+                matchMetaData.application,
+                matchMetaData.methodAc,
+                location.get("start").asInt(),
+                location.get("end").asInt(),
+                site.get("numLocations").asInt(),
+                siteLoc.get("residue").asText(),
+                siteLoc.get("start").asInt(),
+                siteLoc.get("end").asInt(),
+                site.get("description").asText()
+            ]
+        }
     }
+    return [matchValue, siteValues]
+}
+
+def fmtPrintsMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue,
+        location.get("motifNumber").asInt(),
+        getBigDecimal(location, "pvalue"),
+        matchMetaData.graphscan
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
+}
+
+def fmtPrositePatternsMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        "ProSitePatterns",
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        0,
+        location.get("cigarAlignment").asText()
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
+}
+
+def fmtPrositeProfilesMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        "ProSiteProfiles",
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        location.get("cigarAlignment").asText()
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
+}
+
+def fmtSfldMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue,
+        null,  // do not report hmm-bounds
+        location.get("hmmStart").asInt(),
+        location.get("hmmEnd").asInt(),
+        location.get("hmmLength").asInt(),
+        location.get("envelopeStart").asInt(),
+        location.get("envelopeEnd").asInt(),
+        getBigDecimal(location, "score"),
+        getBigDecimal(location, "evalue")
+    ]
+    siteValues = []
+    location.sites.each { site ->
+        site.siteLocations.each { siteLoc ->
+            siteValues << [
+                matchMetaData.analysisId,
+                matchMetaData.upi,
+                matchMetaData.md5,
+                matchMetaData.seqLength,
+                matchMetaData.application,
+                matchMetaData.methodAc,
+                location.get("start").asInt(),
+                location.get("end").asInt(),
+                site.get("numLocations").asInt(),
+                siteLoc.get("residue").asText(),
+                siteLoc.get("start").asInt(),
+                siteLoc.get("end").asInt(),
+                site.get("description").asText()
+            ]
+        }
+    }
+    return [matchValue, siteValues]
+}
+
+def fmtSmartMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqScore,
+        matchMetaData.seqEvalue,
+        reverseHmmBounds(location.get("hmmBounds").asText()),
+        location.get("hmmStart").asInt(),
+        location.get("hmmEnd").asInt(),
+        location.get("hmmLength").asInt(),
+        getBigDecimal(location, "score"),
+        getBigDecimal(location, "evalue")
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
+}
+
+def fmtSuperfamilyMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        ftmFragments(location.get('location-fragments')),
+        matchMetaData.seqEvalue,
+        location.get("hmmLength").asInt()
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
+}
+
+def fmtSignalpMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application.replace("signalp_prok", "SignalP_PROK").replace("signalp_euk", "SignalP_EUK"),
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        null,
+        getBigDecimal(location, "pvalue")
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
 }
 
 def streamJson(String filePath, ObjectMapper mapper, Closure closure) {

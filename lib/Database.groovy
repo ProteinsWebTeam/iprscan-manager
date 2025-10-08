@@ -3,18 +3,26 @@ import groovy.sql.Sql
 
 
 class Database {
-    private String uri
     private Sql sql
     private static final def INSERT_SIZE = 10000
+    private static final def DRIVERS = [
+        oracle: [
+            driver: "oracle.jdbc.driver.OracleDriver",
+            prefix: "jdbc:oracle:thin"
+        ],
+        postgresql: [
+            driver: "org.postgresql.Driver",
+            prefix: "jdbc:postgresql"
+        ]
+    ]
 
-    Database(String uri, String user, String password, boolean sql = false) {
-        this.uri = uri
-        this.connect(user, password)
+    Database(String uri, String user, String password, String engine) {
+        this.connect(uri, user, password, engine.replace("-", ""))
     }
 
-    private void connect(String user, String password) {
-        String url = "jdbc:oracle:thin:${this.uri}"
-        String driver = "oracle.jdbc.driver.OracleDriver"
+    private void connect(String uri, String user, String password, String engine) {
+        String url = "${this.DRIVERS[engine].prefix}:${uri}"
+        String driver = this.DRIVERS[engine].driver
         try {
             this.sql = Sql.newInstance(url, user, password, driver)
         } catch (Exception e) {
@@ -34,44 +42,40 @@ class Database {
     }
 
     String getMaxUPI() { // UPI of the most recent seq in UniParc
-        def query = "SELECT MAX(UPI) FROM UNIPARC.PROTEIN"
+        def query = "SELECT MAX(UPI) FROM iprscan.protein"
         return this.sql.rows(query)[0][0]
     }
 
     void dropProteinTable() {
-        this.sql.execute("DROP TABLE UNIPARC.PROTEIN PURGE")
+        this.sql.execute("DROP TABLE IF EXISTS iprscan.protein;")
     }
 
     void buildProteinTable() {
         this.sql.execute(
             """
-            CREATE TABLE UNIPARC.PROTEIN
+            CREATE TABLE iprscab.protein
             (
-                ID NUMBER(15) NOT NULL,
-                UPI CHAR(13) NOT NULL,
-                TIMESTAMP DATE NOT NULL,
-                USERSTAMP VARCHAR2(30) NOT NULL,
-                CRC64 CHAR(16) NOT NULL,
-                LEN NUMBER(6) NOT NULL,
-                SEQ_SHORT VARCHAR2(4000),
-                SEQ_LONG CLOB,
-                MD5 VARCHAR2(32) NOT NULL
+                upi CHAR(13) NOT NULL,
+                timestamp TIMESTAMP NOT NULL,
+                sequence TEXT NOT NULL,
+                length NUMBER(6) NOT NULL,
+                crc64 CHAR(16) NOT NULL,
+                md5 VARCHAR2(32) NOT NULL
             ) NOLOGGING
             """
         )
     }
 
     void configureProteinTable() {
-        this.sql.execute("GRANT SELECT ON UNIPARC.PROTEIN TO PUBLIC")
-        this.sql.execute("CREATE UNIQUE INDEX ON UNIPARC.PROTEIN (UPI)")
+        this.sql.execute("GRANT SELECT ON iprscan.PROTEIN TO PUBLIC")
+        this.sql.execute("CREATE UNIQUE INDEX ON iprscan.PROTEIN (UPI)")
     }
 
     List<String> iterProteins(String gt = null, String le = null, Closure rowHandler) {
         String sqlQuery = """
-            SELECT ID, UPI, TIMESTAMP, USERSTAMP, CRC64, LEN, SEQ_SHORT, SEQ_LONG, MD5
+            SELECT UPI, TIMESTAMP, SEQ_SHORT, SEQ_LONG, LEN, CRC64, MD5
             FROM UNIPARC.PROTEIN
         """
-        System.out.println("GT: ${gt} LE: ${le}")
         def filters = []
         def params = [:]
         if (gt) {
@@ -82,76 +86,64 @@ class Database {
             filters << "UPI <= :le"
             params.le = le
         }
-        System.out.println("filters: ${filters}")
-        System.out.println("params: ${params}")
+
         if (filters) {
             sqlQuery += " WHERE " + filters.join(" AND ")
         }
-        System.out.println("Query: ${sqlQuery}\nParams: ${params}")
+
         this.sql.eachRow(sqlQuery, params, rowHandler)
     }
 
     void insertProteins(List<String> records) {
         String insertQuery = """
-            INSERT /*+ APPEND */ INTO UNIPARC.PROTEIN
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT /*+ APPEND */ INTO iprscan.protein
+            VALUES (?, ?, ?, ?, ?, ?)
         """
-        System.out.println("INSERT - ${records[0]} to ${records[-1]}")
-        this.sql.withBatch(insertQuery) { stmt ->
-            records.each { stmt.addBatch([
-                it.ID.toInteger(),
-                it.UPI,
-                it.TIMESTAMP,
-                it.USERSTAMP,
-                it.CRC64,
-                it.LEN.toInteger(),
-                it.SEQ_SHORT,
-                it.SEQ_LONG,
-                it.MD5
-            ]) }
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            records.each { row ->
+                preparedStmt.addBatch(row)
+            }
         }
     }
 
     List<String> getAnalyses() {
         def query = """
-            SELECT A.MAX_UPI, A.I6_DIR, A.INTERPRO_VERSION, A.NAME,
-                T.MATCH_TABLE, T.SITE_TABLE,
-                A.ID, A.VERSION
-            FROM ANALYSIS A
-            INNER JOIN ANALYSIS_TABLES T
-                ON LOWER(A.NAME) = LOWER(T.NAME)
-            WHERE A.ACTIVE = 'Y'
+            SELECT A.max_upi, A.i6_dir, A.INTERPRO_VERSION, A.name,
+                T.match_table, T.site_table,
+                A.id, A.version, A.gpu
+            FROM iprscan.analysis A
+            INNER JOIN iprscan.analysis_tables T
+                ON LOWER(A.name) = LOWER(T.name)
+            WHERE A.active AND
+                A.i6_dir IS NOT NULL
         """
         return this.sql.rows(query)
     }
 
-    List<Map> getPartitions(schema, table) {
+    Map<String, Map> getPartitions(table_name) {
+        // The parition bound is "DEFAULT" or "FOR VALUES IN ($analysis_id)"
         String query ="""
-            SELECT P.PARTITION_NAME, P.PARTITION_POSITION, P.HIGH_VALUE,
-            K.COLUMN_NAME, K.COLUMN_POSITION
-            FROM ALL_TAB_PARTITIONS P
-            INNER JOIN ALL_PART_KEY_COLUMNS K
-            ON P.TABLE_OWNER = K.OWNER 
-            AND P.TABLE_NAME = K.NAME
-            WHERE P.TABLE_OWNER = ? 
-            AND P.TABLE_NAME = ?
+            SELECT
+                p.relname parent_name,
+                c.relname child_name,
+                pg_get_expr(c.relpartbound, c.oid) AS partition_bound
+            FROM pg_class p
+            JOIN pg_inherits i ON p.oid = i.inhparent
+            JOIN pg_class c ON i.inhrelid = c.oid
+            WHERE c.relpartbound IS NOT NULL
+            AND p.relname = ?
+            ORDER BY parent_name, child_name;
         """
         Map<String, Map> partitions = [:]
 
-        this.sql.eachRow(query, [schema.toUpperCase(), table.toUpperCase()]) { row ->
-            String partName = row.PARTITION_NAME
-            if (partitions.containsKey(partName)) {
-                throw new Exception("Multi-column partitioning keys are not supported")
-            }
-            partitions[partName] = [
-                    name    : partName,
-                    position: row.PARTITION_POSITION,
-                    value   : row.HIGH_VALUE,
-                    column  : row.COLUMN_NAME
+        this.sql.eachRow(query, [table_name.toLowerCase()]) { row ->
+            partitions[row.child_name] = [
+                    parent         : row.parent_name,
+                    partition_bound: row.partition_bound,
             ]
         }
 
-        return partitions.values().sort { it.position }
+        return partitions
     }
 
     Integer getJobCount(Integer analysis_id, String max_upi) {
@@ -168,32 +160,21 @@ class Database {
         Integer offset = 0
         Integer batchSize = 1000
         String query = """
-        SELECT UPI, SEQ_SHORT, SEQ_LONG
-        FROM (
-            SELECT UPI, SEQ_SHORT, SEQ_LONG, ROW_NUMBER() OVER (ORDER BY UPI) AS row_num
-            FROM UNIPARC.PROTEIN
-            WHERE UPI BETWEEN ? AND ?
-        ) WHERE row_num BETWEEN ? AND ?
+        SELECT upi, sequence
+        FROM iprscan.protein
+        WHERE upi BETWEEN ? AND ?
+        ORDER BY upi
+        LIMIT ? OFFSET ?
         """
 
         while (true) {
-            def batch = this.sql.rows(query, [upi_from, upi_to, offset + 1, offset + batchSize])
+            def batch = this.sql.rows(query, [upi_from, upi_to, batchSize, offset])
             for (row: batch) {
-                def upi = row.UPI
-                def seq = row.SEQ_SHORT ?: row.SEQ_LONG
-
-                // Convert Oracle CLOB to String if necessary - needed for very long seqs
-                if (seq instanceof CLOB) {
-                    seq = seq.getSubString(1, (int) seq.length())
-                } else {
-                    seq = seq.toString()
-                }
-
-                if (seq) {
-                    writer.writeLine(">${upi}")
-                    for (int i = 0; i < seq.length(); i += 60) {
-                        int end = Math.min(i + 60, seq.length())
-                        writer.writeLine(seq.substring(i, end))
+                if (row.sequence) {
+                    writer.writeLine(">${row.upi}")
+                    for (int i = 0; i < row.sequence.length(); i += 60) {
+                        int end = Math.min(i + 60, row.sequence.length())
+                        writer.writeLine(row.sequence.substring(i, end))
                     }
                     seqCount += 1
                 }
@@ -230,11 +211,11 @@ class Database {
     }
 
     void persistDefaultMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
-            SEQSCORE, SEQEVALUE, HMM_BOUNDS, HMM_START, HMM_END,
-            HMM_LENGTH, ENV_START, ENV_END, SCORE, EVALUE
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, fragments,
+            seqscore, seqevalue, hmm_bounds, hmm_start, hmm_end,
+            hmm_length, env_start, env_end, score, evalue
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -246,11 +227,11 @@ class Database {
     }
 
     void persistDefaultSites(values, siteTable) {
-        String insertQuery = """INSERT INTO ${siteTable} (
-            ANALYSIS_ID, UPI_RANGE, UPI, MD5, SEQ_LENGTH, ANALYSIS_NAME, METHOD_AC,
-            LOC_START, LOC_END, NUM_SITES, RESIDUE, RES_START, RES_END, DESCRIPTION
+        String insertQuery = """INSERT INTO iprscan.${siteTable} (
+            analysis_id, upi, md5, seq_length, analysis_name, method_ac,
+            loc_start, loc_end, num_sites, residue, res_start, res_end, description
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
             values.each { row ->
@@ -260,9 +241,9 @@ class Database {
     }
 
     void persistMinimalistMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, fragments
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -274,10 +255,10 @@ class Database {
     }
 
     void persistCddMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
-            SEQSCORE, SEQEVALUE
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, fragments,
+            seqscore, seqevalue
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -289,10 +270,10 @@ class Database {
     }
 
     void persistHamapMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
-            SEQSCORE, ALIGNMENT
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, fragments,
+            seqscore, alignment
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -304,10 +285,10 @@ class Database {
     }
 
     void persistMobiDBliteMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END,
-            FRAGMENTS, SEQ_FEATURE
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end,
+            fragments, seq_feature
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -319,13 +300,13 @@ class Database {
     }
 
     void persistPantherMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
-            SEQSCORE, SEQEVALUE, HMM_BOUNDS, HMM_START, HMM_END,
-            HMM_LENGTH, ENV_START, ENV_END, SCORE, EVALUE, AN_NODE_ID
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, fragments,
+            seqscore, seqevalue, hmm_bounds, hmm_start, hmm_end,
+            hmm_length, env_start, env_end, an_node_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
             values.each { row ->
@@ -335,11 +316,11 @@ class Database {
     }
 
     void persistPirsrMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
-            SEQSCORE, SEQEVALUE, HMM_BOUNDS, HMM_START, HMM_END,
-            HMM_LENGTH, SCORE, EVALUE, ENV_START, ENV_END
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, fragments,
+            seqscore, seqevalue, hmm_bounds, hmm_start, hmm_end,
+            hmm_length, score, evalue, env_start, env_end
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -351,10 +332,10 @@ class Database {
     }
 
     void persistPrintsMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
-            SEQSCORE, SEQEVALUE, MOTIF_NUMBER, PVALUE, GRAPHSCAN
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, fragments,
+            seqscore, seqevalue, motif_number, pvalue, graphscan
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -366,10 +347,10 @@ class Database {
     }
 
     void persistPrositePatternsMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
-            LOCATION_LEVEL, ALIGNMENT
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, fragments,
+            location_level, alignment
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -381,10 +362,10 @@ class Database {
     }
 
     void persistPrositeProfileMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
-            ALIGNMENT
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, fragments,
+            alignment
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -396,10 +377,10 @@ class Database {
     }
 
     void persistSignalpMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
-            SEQSCORE
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, fragments,
+            seqscore
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -411,11 +392,11 @@ class Database {
     }
 
     void persistSmartMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
-            SEQSCORE, SEQEVALUE, HMM_BOUNDS, HMM_START, HMM_END,
-            HMM_LENGTH, SCORE, EVALUE
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, fragments,
+            seqscore, seqevalue, hmm_bounds, hmm_start, hmm_end,
+            hmm_length, score, evalue
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -427,10 +408,10 @@ class Database {
     }
 
     void persistSuperfamilyMatches(values, matchTable) {
-        String insertQuery = """INSERT INTO ${matchTable} (
-            ANALYSIS_ID, ANALYSIS_NAME, RELNO_MAJOR, RELNO_MINOR,
-            UPI, METHOD_AC, MODEL_AC, SEQ_START, SEQ_END, FRAGMENTS,
-            SEQEVALUE, HMM_LENGTH
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, fragments,
+            seqevalue, hmm_length
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -442,11 +423,13 @@ class Database {
     }
 
     void persistJob(List value) {
-        String insertQuery = """INSERT INTO ANALYSIS_JOBS (
-            ANALYSIS_ID, UPI_FROM, UPI_TO, CREATED_TIME,
-            START_TIME, END_TIME, MAX_MEMORY, LIM_MEMORY,
-            CPU_TIME, SUCCESS, SEQUENCES
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+        String insertQuery = """INSERT INTO iprscan.analysis_jobs (
+            analysis_id, upi_from, upi_to, created_time,
+            start_time, end_time, max_memory, lim_memory,
+            cpu_time, success, sequences
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
 
         this.sql.executeInsert(insertQuery, value)
     }
