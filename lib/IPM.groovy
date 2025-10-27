@@ -11,6 +11,10 @@ class IPM {
                     dscription: "Methods to be run as a comma separated list. Choose from: 'import', 'analyse', and 'clean'"
             ],
             [
+                    name: "batch-size",
+                    description: "[ANALYSE] Max number of sequences per InterProScan job"
+            ],
+            [
                     name: "top-up",
                     description: "[IMPORT] Import new sequences only - only used by the 'import' method."
             ],
@@ -203,17 +207,17 @@ class IPM {
         // Will need to adapt when i6 can run on bare metal
         String error = ""
         String profile = ""
-        if (!container) {
-            error += "No IPS6 container runtime specified" // rm when i6 can run on bare metal
-        } else {
+        if (container) {  // will be null when running iprscan on baremetal
             profile = container
         }
 
         if (executor && executor != "local") {
             if (executor != "slurm") {
-                error += "Executor '${executor}' not recognised"
+                error = "Executor '${executor}' not recognised"
             }
-            profile += ",${executor}"
+            if (profile) {
+                profile += ",${executor}"
+            }
         }
         return [profile, error]
     }
