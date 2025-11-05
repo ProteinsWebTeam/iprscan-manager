@@ -1,4 +1,3 @@
-import oracle.sql.CLOB
 import groovy.sql.Sql
 
 
@@ -147,10 +146,17 @@ class Database {
     }
 
     Integer getJobCount(Integer analysis_id, String max_upi) {
-        return this.sql.execute(
+        return this.sql.rows(
             "SELECT COUNT (*) FROM IPRSCAN.ANALYSIS_JOBS WHERE ANALYSIS_ID = ? AND UPI_FROM > ?",
             [analysis_id, max_upi]
         )[0]
+    }
+
+    List<String> getUpiRange(String upi_from, String upi_to) {
+        return this.sql.rows(
+            "SELECT UPI FROM IPRSCAN.PROTEIN WHERE UPI > ? AND UPI <= ? ORDER BY UPI",
+            [upi_from, upi_to]
+        ).collect { it.UPI }
     }
 
     Integer writeFasta(String upi_from, String upi_to, String fasta) {

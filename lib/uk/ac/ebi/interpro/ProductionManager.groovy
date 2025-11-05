@@ -11,16 +11,16 @@ class IPM {
                     dscription: "Methods to be run as a comma separated list. Choose from: 'import', 'analyse', and 'clean'"
             ],
             [
-                    name: "batch-size",
-                    description: "[ANALYSE] Max number of sequences per InterProScan job"
-            ],
-            [
                     name: "top-up",
                     description: "[IMPORT] Import new sequences only - only used by the 'import' method."
             ],
             [
                     name: "max-upi",
                     description: "[IMPORT] Maximum sequence UPI to import - only used by the 'import' method."
+            ],
+            [
+                    name: "batch-size",
+                    description: "[ANALYSE] Max number of sequences per InterProScan job"
             ],
             [
                     name: "analyses",
