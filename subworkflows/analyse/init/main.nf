@@ -1,5 +1,5 @@
-uk.ac.ebi.interpro.ProductionManager
-uk.ac.ebi.interpro.Iprscan
+import uk.ac.ebi.interpro.ProductionManager
+import uk.ac.ebi.interpro.Iprscan
 
 workflow INIT_PIPELINE {
     take:
@@ -8,12 +8,12 @@ workflow INIT_PIPELINE {
 
     main:
     // [1] Validate the iprscan executable
-    cpuExeutable = ProductionManager.resolveExecutable(interproscan_params.cpu.executable)
+    (cpuExeutable, error) = ProductionManager.resolveExecutable(interproscan_params.cpu.executable)
     if (error) {
         log.error error
         exit 1
     }
-    gpuExecutable = ProductionManager.resolveExecutable(interproscan_params.gpu.executable)
+    (gpuExecutable, error) = ProductionManager.resolveExecutable(interproscan_params.gpu.executable)
     if (error) {
         log.error error
         exit 1

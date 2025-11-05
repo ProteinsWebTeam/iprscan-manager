@@ -1,5 +1,7 @@
 // Insert and persist the job data in the interproscan-db ANALYSIS_JOBS table
 
+import uk.ac.ebi.interpro.Database
+
 process LOG_JOBS {
     executor 'local'
 

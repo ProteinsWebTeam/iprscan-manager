@@ -1,3 +1,5 @@
+import uk.ac.ebi.interpro.Database
+
 process CLEAN_OBSOLETE_DATA {
     input:
     val iprscan_conf

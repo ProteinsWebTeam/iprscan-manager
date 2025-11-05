@@ -1,3 +1,6 @@
+import uk.ac.ebi.interpro.Application
+import uk.ac.ebi.interpro.Database
+import uk.ac.ebi.interpro.Iprscan
 import uk.ac.ebi.interpro.Job
 
 process GET_ANALYSES {

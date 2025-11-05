@@ -166,7 +166,7 @@ class ProductionManager {
     }
 
     static String resolveExecutable(String executable) {
-        error = ""
+        String error = ""
         if (!executable) {
             error = "Please specify a IPS6 executable - e.g. 'ebi-pf-team/interproscan6' or a path to the ips6 main.nf file"
             return [executable, error]
@@ -175,8 +175,8 @@ class ProductionManager {
             return [executable, error]
         }
         Path path = Paths.get(executable)
-        executable =  Files.isRegularFile(path) ? path.toRealPath() : null
-        return [executable, error]
+        String executablePath =  Files.isRegularFile(path) ? path.toRealPath() : null
+        return [executablePath, error]
     }
 
     static String resolveFile(String filePath) {
@@ -219,7 +219,7 @@ class ProductionManager {
         String gpuProfile = ""
 
         if (!cpu_executor && !gpu_executor) {
-            error = "No InterProSCan 6 executor provided for CPU or GPU set up"
+            error = "No InterProSCan 6 executor provided for CPU or GPU devices"
             return [cpuProfile, gpuProfile, error]
         }
 
@@ -227,7 +227,6 @@ class ProductionManager {
             (cpuProfile, gpuProfile, error) = validateProfile(cpu_executor, "CPU", container)
             if (error) { return [cpuProfile, gpuProfile, error] }
         } // else, local and no container defined - will run on baremetal
-
         if (gpu_executor) {
             (cpuProfile, gpuProfile, error) = validateProfile(gpu_executor, "GPU", container)
             if (error) { return [cpuProfile, gpuProfile, error] }
@@ -237,24 +236,29 @@ class ProductionManager {
     }
 
     static validateProfile(String executor, String device, String container) {
+        String errorMessage = ""
+        String profile = ""
+        
         if (executor == "local" && container) {
-            if (!this.LOCAL_CONTAINERS.contains(container)) {
-                error = "Unrecognised container '${container} for the InterProScan local ${device} configuration"
-                return [cpuProfile, gpuProfile, error]
+            if (!LOCAL_CONTAINERS.contains(container)) {
+                errorMessage = "Unrecognised container '${container}' for the InterProScan local ${device} configuration"
+                return [profile, errorMessage]
             }
-            cpuProfile = container
+            profile = container
         } else if (executor == "slurm") {
-            cpuProfile = executor
+            profile = executor
             if (container) {
-                if (!this.CLUSTER_CONTAINERS.contains(container)) {
-                    error = "Unrecognised container '${container} for the InterProScan cluster ${device} configuration"
-                    return [cpuProfile, gpuProfile, error]
+                if (!CLUSTER_CONTAINERS.contains(container)) {
+                    errorMessage = "Unrecognised container '${container}' for the InterProScan cluster ${device} configuration"
+                    return [profile, errorMessage]
                 }
-                cpuProfile += ",${container}"
+                profile += ",${container}"
             }
-        } else if (executor != "local" && executor != "slurm") {
-            error = "Unrecognised executor '${executor} for the InterProScan ${device} configuration"
-            return [cpuProfile, gpuProfile, error]
+        } else {
+            errorMessage = "Unrecognised executor '${executor}' for the InterProScan ${device} configuration"
+            return [profile, errorMessage]
         }
+
+        return [profile, errorMessage]
     }
 }
