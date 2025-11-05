@@ -1,5 +1,5 @@
 include { INIT_PIPELINE                              } from "./init"
-include { GET_ANALYSES; GET_SEQUENCES                } from "../../modules/prepare"
+include { GET_ANALYSES; GET_JOBS                     } from "../../modules/prepare"
 include { RUN_INTERPROSCAN_CPU; RUN_INTERPROSCAN_GPU } from "../../modules/interproscan"
 include { PERSIST_MATCHES                            } from "../../modules/persist/matches"
 include { LOG_JOBS                                   } from "../../modules/persist/jobs"
@@ -8,20 +8,31 @@ workflow ANALYSE {
     take:
     database_params
     interproscan_params
+    applications_params
+    batch_size
 
     main:
     INIT_PIPELINE(
         database_params,
         interproscan_params
     )
-    iprscan_exe    = INIT_PIPELINE.out.iprscan.val        // path to iprscan executable
-    profile        = INIT_PIPELINE.out.profile.val        // iprscan container and runtime profiles
-    work_dir       = INIT_PIPELINE.out.workDir.val        // path to write out the iprscan workdir
+    cpu_iprscan    = INIT_PIPELINE.out.cpuIprscan.val     // Iprscan instance for CPU execution
+    gpu_iprscan    = INIT_PIPELINE.out.gpuIprscan.val     // Iprscan instance for GPU execution
     db_config      = INIT_PIPELINE.out.dbConfig.val       // map of interpro oracle/postrgresql db info (user, pwd, etc.)
     iprscan_config = INIT_PIPELINE.out.iprscanConfig.val  // iprscan config file, if one is provided, e.g. to run with a gpu
 
-    analyses       = GET_ANALYSES(db_config["intprscan"])
-    all_jobs       = GET_SEQUENCES(db_config["intprscan"], analyses)
+    analyses = GET_ANALYSES(
+        db_config["intprscan"]
+    )
+
+    all_jobs = GET_JOBS(
+        db_config["intprscan"],
+        applications_params,
+        analyses,
+        cpu_iprscan,
+        gpu_iprscan,
+        batch_size
+    )
 
     // Index the jobs so we can identify successfully and failed jobs -> [[index, job, gpu[bool]], [index, job, gpu[bool]]]
     cpu_jobs    = all_jobs[0]
@@ -41,23 +52,9 @@ workflow ANALYSE {
     If PERSIST_MATCHES fails, mark the job as unsuccessful in the ANALYSIS_JOBS table.
     If RUN_INTERPROSCAN fails skip straight to updating the ANALYSIS_JOBS table.
     */
-    iprscan_cpu_out = RUN_INTERPROSCAN_CPU(
-        ch_cpu_jobs,
-        iprscan_exe,
-        profile,
-        work_dir,
-        interproscan_params.maxWorkers,
-        iprscan_config
-    )
+    iprscan_cpu_out = RUN_INTERPROSCAN_CPU(ch_cpu_jobs)
 
-    iprscan_gpu_out = RUN_INTERPROSCAN_GPU(
-        ch_gpu_jobs,
-        iprscan_exe,
-        profile,
-        work_dir,
-        interproscan_params.maxWorkers,
-        iprscan_config
-    )
+    iprscan_gpu_out = RUN_INTERPROSCAN_GPU(ch_gpu_jobs)
 
     ch_iprscan_results = iprscan_cpu_out
         .mix(iprscan_gpu_out)

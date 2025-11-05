@@ -1,3 +1,6 @@
+uk.ac.ebi.interpro.ProductionManager
+uk.ac.ebi.interpro.Iprscan
+
 workflow INIT_PIPELINE {
     take:
     database_params
@@ -5,19 +8,21 @@ workflow INIT_PIPELINE {
 
     main:
     // [1] Validate the iprscan executable
-    if (!interproscan_params.executable) {
-        log.error "Please specify a IPS6 executable - e.g. 'ebi-pf-team/interproscan6' or a path to the ips6 main.nf file"
+    cpuExeutable = ProductionManager.resolveExecutable(interproscan_params.cpu.executable)
+    if (error) {
+        log.error error
         exit 1
     }
-    iprscan = IPM.resolveExecutable(interproscan_params.executable)
-    if (!iprscan) {
-        log.error "Cannot find iprscan executable at ${interproscan_params.executable}"
+    gpuExecutable = ProductionManager.resolveExecutable(interproscan_params.gpu.executable)
+    if (error) {
+        log.error error
         exit 1
     }
 
     // [2] Validate the container runtime and scheduler
-    (profile, error) = IPM.getIprscanProfiles(
-        interproscan_params.executor,
+    (cpuProfile, gpuProfile, error) = ProductionManager.getIprscanProfiles(
+        interproscan_params.cpu.executor,
+        interproscan_params.gpu.executor,
         interproscan_params.container
     )
     if (error) {
@@ -26,30 +31,54 @@ workflow INIT_PIPELINE {
     }
 
     // [3] Validate the work dir
-    (workDir, error) = IPM.resolveDirectory(interproscan_params.workdir, true)
+    (cpuWorkDir, error) = ProductionManager.resolveDirectory(interproscan_params.cpu.workdir, true)
+    if (!workDir) {
+        log.error error
+        exit 1
+    }
+    (gpuWorkDir, error) = ProductionManager.resolveDirectory(interproscan_params.gpu.workdir, true)
     if (!workDir) {
         log.error error
         exit 1
     }
 
     // [4] Validate database configuration
-    (dbConfig, error) = IPM.validateDbConfig(database_params, ["intprscan"])
+    (dbConfig, error) = ProductionManager.validateDbConfig(database_params, ["intprscan"])
     if (error) {
         log.error error
         exit 1
     }
 
     // [5] Validate the iprscan config file is one is specified
-    (iprscanConfig, error) = IPM.validateConfig(interproscan_params.config)
+    (cpuIprscanConfig, error) = ProductionManager.validateConfig(interproscan_params.cpu.config)
+    if (error) {
+        log.error error
+        exit 1
+    }
+    (gpuIprscanConfig, error) = ProductionManager.validateConfig(interproscan_params.gpu.config)
     if (error) {
         log.error error
         exit 1
     }
 
+    cpuIprscan = Iprscan(
+        cpuExeutable,
+        cpuWorkDir,
+        interproscan_params.cpu.maxWorkers,
+        cpuIprscanConfig,
+        False
+    )
+    gpuIprscan = Iprscan(
+        gpuExeutable,
+        gpuWorkDir,
+        interproscan_params.cpu.maxWorkers,
+        gpuIprscanConfig,
+        True
+    )
+
     emit:
-    iprscan
-    profile
-    workDir
+    cpuIprscan
+    gpuIprscan
     dbConfig
     iprscanConfig
 }

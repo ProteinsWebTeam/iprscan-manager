@@ -1,7 +1,11 @@
+package uk.ac.ebi.interpro
+
 import java.nio.file.*
 
-class IPM {
+class ProductionManager {
     static final def METHODS = ["analyse", "clean", "import", "index"]
+    static final def LOCAL_CONTAINERS = ["docker", "singularity"]
+    static final def CLUSTER_CONTAINERS = ["singularity"]
 
     static final def PARAMS = [
             [
@@ -162,11 +166,17 @@ class IPM {
     }
 
     static String resolveExecutable(String executable) {
+        error = ""
+        if (!executable) {
+            error = "Please specify a IPS6 executable - e.g. 'ebi-pf-team/interproscan6' or a path to the ips6 main.nf file"
+            return [executable, error]
+        }
         if (executable.startsWith("ebi-pf-team/interproscan6")) {
-            return executable
+            return [executable, error]
         }
         Path path = Paths.get(executable)
-        return Files.isRegularFile(path) ? path.toRealPath() : null
+        executable =  Files.isRegularFile(path) ? path.toRealPath() : null
+        return [executable, error]
     }
 
     static String resolveFile(String filePath) {
@@ -203,22 +213,48 @@ class IPM {
         return [config, error ?: null]
     }
 
-    static getIprscanProfiles(String executor, String container) {
-        // Will need to adapt when i6 can run on bare metal
+    static getIprscanProfiles(String cpu_executor, String gpu_executor, String container) {
         String error = ""
-        String profile = ""
-        if (container) {  // will be null when running iprscan on baremetal
-            profile = container
+        String cpuProfile = ""
+        String gpuProfile = ""
+
+        if (!cpu_executor && !gpu_executor) {
+            error = "No InterProSCan 6 executor provided for CPU or GPU set up"
+            return [cpuProfile, gpuProfile, error]
         }
 
-        if (executor && executor != "local") {
-            if (executor != "slurm") {
-                error = "Executor '${executor}' not recognised"
+        if (cpu_executor) {
+            (cpuProfile, gpuProfile, error) = validateProfile(cpu_executor, "CPU", container)
+            if (error) { return [cpuProfile, gpuProfile, error] }
+        } // else, local and no container defined - will run on baremetal
+
+        if (gpu_executor) {
+            (cpuProfile, gpuProfile, error) = validateProfile(gpu_executor, "GPU", container)
+            if (error) { return [cpuProfile, gpuProfile, error] }
+        } // else, local and no container defined - will run on baremetal
+
+        return [cpuProfile, gpuProfile, error]
+    }
+
+    static validateProfile(String executor, String device, String container) {
+        if (executor == "local" && container) {
+            if (!this.LOCAL_CONTAINERS.contains(container)) {
+                error = "Unrecognised container '${container} for the InterProScan local ${device} configuration"
+                return [cpuProfile, gpuProfile, error]
             }
-            if (profile) {
-                profile += ",${executor}"
+            cpuProfile = container
+        } else if (executor == "slurm") {
+            cpuProfile = executor
+            if (container) {
+                if (!this.CLUSTER_CONTAINERS.contains(container)) {
+                    error = "Unrecognised container '${container} for the InterProScan cluster ${device} configuration"
+                    return [cpuProfile, gpuProfile, error]
+                }
+                cpuProfile += ",${container}"
             }
+        } else if (executor != "local" && executor != "slurm") {
+            error = "Unrecognised executor '${executor} for the InterProScan ${device} configuration"
+            return [cpuProfile, gpuProfile, error]
         }
-        return [profile, error]
     }
 }

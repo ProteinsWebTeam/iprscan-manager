@@ -22,7 +22,9 @@ workflow {
         if (method == "analyse") {
             ANALYSE(
                 params.databases,
-                params.interproscan
+                params.interproscan,
+                params.appsConf,
+                params.batchSize
             )
         } else if (method == "clean") {
             CLEAN(

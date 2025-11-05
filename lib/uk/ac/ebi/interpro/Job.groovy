@@ -1,5 +1,12 @@
-class IprscanJob {
-    Integer analysisId            // analysis ID in the ISPRO db
+package uk.ac.ebi.interpro
+
+import uk.ac.ebi.interpro.Iprscan
+
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
+class Job {
+    Integer analysisId             // Analysis ID in the ISPRO db
     String maxUpi                  // Max UPI to analyse
     String dataDir                 // Str repr of the path to the interproscan 6 data dir
     String interproVersion         // InterPro database release to use
@@ -11,28 +18,52 @@ class IprscanJob {
     String upiTo = null            // Lower range of the analysed sequences - for insertion into the ANALYSIS_JOBS table
     Application application = null // Member database
     String createdTime = null      // Time sbatch job is created - for insertion into the ANALYSIS_JOBS table
+    Iprscan iprscan = null         // Iprscan class instance - stores executable and configuration for iprscan
 
-    IprscanJob(Integer analysis_id, String max_upi, String data_dir, String interpro_version, Boolean gpu) {
+    Job(Integer analysis_id, String max_upi, String data_dir, String interpro_version, Boolean gpu, String resources) {
         this.analysisId = analysis_id
         this.maxUpi = max_upi
         this.dataDir = data_dir
         this.interproVersion = interpro_version
         this.gpu = gpu
+        this.resources = resources
+    }
+
+    Job(
+        Integer analysis_id,
+        String max_upi,
+        String data_dir,
+        String interpro_version,
+        Boolean gpu,
+        Application application,
+        Iprscan iprscan,
+        String fasta,
+        Integer seqCount,
+        String upiFrom,
+        String upiTo
+    ) {
+        def now = LocalDateTime.now()
+        def formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+        def createdTime = now.format(formatter)
+
+        this.analysisId = analysis_id
+        this.maxUpi = max_upi
+        this.dataDir = data_dir
+        this.interproVersion = interpro_version
+        this.gpu = gpu
+        this.application = application
+        this.iprscan = iprscan
+        this.fasta = fasta
+        this.seqCount = seqCount
+        this.upiFrom = upiFrom
+        this.upiTo = upiTo
+        this.createdTime = createdTime
     }
 
     void compileJobName() {
         // File a name for the SLURM job so we can retrieve information for this job later
         this.name = "analysis.id-${this.analysisId}_interpro.v-${interproVersion}_app-${application.name}_upi-${this.maxUpi}"
     }
-
-    void setSeqData(String fasta, Integer seqCount, String upiFrom, String upiTo) {
-        // Used in mods/prepare/main.nf:GET_SEQUENCES
-        this.fasta = fasta
-        this.seqCount = seqCount
-        this.upiFrom = upiFrom
-        this.upiTo = upiTo
-    }
-
 }
 
 class Application { // Represents a member database release
