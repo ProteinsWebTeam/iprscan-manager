@@ -1,3 +1,5 @@
+package uk.ac.ebi.interpro
+
 import groovy.sql.Sql
 
 
