@@ -3,14 +3,14 @@ process RUN_INTERPROSCAN_CPU {
     errorStrategy { (task.attempt <= 2) ? 'retry' : 'ignore' }
     label 'interproscan'
 
-    input:
+    input:a
     tuple val(meta), val(job), val(gpu)
 
     memory {
-        params.appsConf.resources[job.iprscan.resources].memory
+        return params.appsConfig.resources[job.iprscan.resources].memory
     }
     time {
-        params.appsConf.resources[job.iprscan.resources].time
+        return params.appsConfig.resources[job.iprscan.resources].time
     }
 
     output:
@@ -18,7 +18,7 @@ process RUN_INTERPROSCAN_CPU {
 
     script:
     def profileArgs  = job.iprscan.profile ? "-profile ${job.iprscan.profile}" : ""
-    def maxWorkers   = job.iprscan.maxWorks ? "--max-workers ${job.iprscan.maxWorks}" : ""
+    def maxWorkers   = job.iprscan.maxWorkers ? "--max-workers ${job.iprscan.maxWorkers}" : ""
     def configPath   = job.iprscan.configFile ? "-c ${job.iprscan.configFile}" : ""
 
     """
@@ -46,10 +46,10 @@ process RUN_INTERPROSCAN_GPU {
     tuple val(meta), val(job), val(gpu)
 
     memory {
-        params.appsConf.resources[job.iprscan.resources].memory
+        return params.appsConfig.resources[job.iprscan.resources].memory
     }
     time {
-        params.appsConf.resources[job.iprscan.resources].time
+        return params.appsConfig.resources[job.iprscan.resources].time
     }
 
     output:
@@ -57,7 +57,7 @@ process RUN_INTERPROSCAN_GPU {
 
     script:
     def profileArgs  = job.iprscan.profile ? "-profile ${job.iprscan.profile}" : ""
-    def maxWorkers   = job.iprscan.maxWorks ? "--max-workers ${job.iprscan.maxWorks}" : ""
+    def maxWorkers   = job.iprscan.maxWorkers ? "--max-workers ${job.iprscan.maxWorkers}" : ""
     def configPath   = job.iprscan.configFile ? "-c ${job.iprscan.configFile}" : ""
 
     """

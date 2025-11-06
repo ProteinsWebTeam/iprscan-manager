@@ -104,6 +104,7 @@ process GET_JOBS {
 
                 def iprscanConfig = new Iprscan(
                     iprscanSource.executable,
+                    iprscanSource.profile,
                     iprscanSource.workDir,
                     iprscanSource.maxWorkers,
                     iprscanSource.configFile,

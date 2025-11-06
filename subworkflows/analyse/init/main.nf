@@ -63,6 +63,7 @@ workflow INIT_PIPELINE {
 
     cpuIprscan = new Iprscan(
         cpuExecutable,
+        cpuProfile,
         cpuWorkDir,
         interproscan_params.cpu.maxWorkers,
         cpuIprscanConfig,
@@ -70,6 +71,7 @@ workflow INIT_PIPELINE {
     )
     gpuIprscan = new Iprscan(
         gpuExecutable,
+        gpuProfile,
         gpuWorkDir,
         interproscan_params.cpu.maxWorkers,
         gpuIprscanConfig,
