@@ -26,8 +26,8 @@ process GET_ANALYSES {
     def analysis_rows = db.getAnalyses()
     for (row: analysis_rows) {
         (maxUpi, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion, gpu) = row
-        job = new Job(analysisId.toInteger(), maxUpi, dataDir, interproVersion, gpu)
-        job.application = new Application(dbName, dbVersion, matchTable, siteTable)
+        application = new Application(dbName, dbVersion, matchTable, siteTable)
+        job = new Job(analysisId.toInteger(), maxUpi, dataDir, interproVersion, gpu, application)
         job.compileJobName()
         analyses[maxUpi] << job
     }
@@ -51,11 +51,22 @@ process GET_JOBS {
     val gpuJobs
 
     exec:
-    Map<String, String> appResources = [:]
-    analyses.each { String maxUpi, Job job ->
-        resources = apps_conf.get(job.application.name.toLowerCase(), "light")
-        appResources[job.application.name] = resources
-    } 
+    // Convert the closure-based config to simple values immediately to avoid "cannot serialise context map" warning
+    def simpleAppsConfig = [
+        applications: [:],
+        resources: [:]
+    ]
+    apps_config.applications.each { key, value ->
+        simpleAppsConfig.applications[key] = value
+    }
+    apps_config.resources.each { resourceType, closure ->
+        def result = [:]
+        closure.delegate = result
+        closure.resolveStrategy = Closure.DELEGATE_FIRST
+        closure()
+        simpleAppsConfig.resources[resourceType] = result
+    }
+    apps_config = null
 
     Database db = new Database(
         iprscan_db_conf.uri,
@@ -69,13 +80,13 @@ process GET_JOBS {
     def maxUPIs = analyses.keySet()
     def fastaFiles = [:].withDefault { [] }
     maxUPIs.each { String upiFrom ->
-        allUpis = db.getUpiRange(upiFrom, upiTo)
-        batched_upis = allUpis.collate(batch_size)
+        def allUpis = db.getUpiRange(upiFrom, upiTo)
+        def batched_upis = allUpis.collate(batch_size)
         for (batch in batched_upis) {
-            batchUpiFrom = batch[0]
-            batchUpiTo = batch[-1]
-            fasta = task.workDir.resolve("upiFrom_${batchUpiFrom}_upiTo_${batchUpiTo}.faa")
-            seqCount = db.writeFasta(batchUpiFrom, batchUpiTo, fasta.toString())
+            def batchUpiFrom = batch[0]
+            def batchUpiTo = batch[-1]
+            def fasta = task.workDir.resolve("upiFrom_${batchUpiFrom}_upiTo_${batchUpiTo}.faa")
+            def seqCount = db.writeFasta(batchUpiFrom, batchUpiTo, fasta.toString())
             fastaFiles[upiFrom] << ['path': fasta, 'count': seqCount, 'upiFrom': batchUpiFrom, 'upiTo': batchUpiTo]
         }
     }
@@ -87,11 +98,11 @@ process GET_JOBS {
     fastaFiles.each { upiFrom, fastaFilesList ->
         analyses[upiFrom].each { job ->
             fastaFilesList.each { fasta ->
-                resources = appResources[job.application.name]
-                useGpu = job.gpu
-                iprscanSource = useGpu ? gpu_iprscan : cpu_iprscan
+                def resources = simpleAppsConfig.resources.get(job.application.name.toLowerCase(), "light")
+                def useGpu = job.gpu
+                def iprscanSource = useGpu ? gpu_iprscan : cpu_iprscan
 
-                iprscanConfig = new Iprscan(
+                def iprscanConfig = new Iprscan(
                     iprscanSource.executable,
                     iprscanSource.workDir,
                     iprscanSource.maxWorkers,
@@ -100,7 +111,7 @@ process GET_JOBS {
                     useGpu
                 )
 
-                batchJob = new Job(
+                def batchJob = new Job(
                     job.analysisId, fasta['upiFrom'],
                     job.dataDir, job.interproVersion,
                     job.gpu, job.application,
@@ -110,7 +121,6 @@ process GET_JOBS {
                 )
 
                 (useGpu ? gpuJobs : cpuJobs) << batchJob
-                println "batchJob: ${batchJob.analysisId} - ${batchJob.application.name} -- ${batchJob.iprscan.resources}"
             }
         }
     }

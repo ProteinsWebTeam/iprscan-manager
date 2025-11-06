@@ -40,6 +40,10 @@ class ProductionManager {
             Use this for params defined in config files that should not be available on the command line
             */
             [
+                name: "apps-config",
+                description: null
+            ],
+            [
                     name: "databases",
                     description: null
             ],
@@ -165,7 +169,7 @@ class ProductionManager {
         }
     }
 
-    static String resolveExecutable(String executable) {
+    static List resolveExecutable(String executable) {
         String error = ""
         if (!executable) {
             error = "Please specify a IPS6 executable - e.g. 'ebi-pf-team/interproscan6' or a path to the ips6 main.nf file"
@@ -174,8 +178,9 @@ class ProductionManager {
         if (executable.startsWith("ebi-pf-team/interproscan6")) {
             return [executable, error]
         }
+        
         Path path = Paths.get(executable)
-        String executablePath =  Files.isRegularFile(path) ? path.toRealPath() : null
+        String executablePath = Files.isRegularFile(path) ? path.toAbsolutePath().toString() : null
         return [executablePath, error]
     }
 
