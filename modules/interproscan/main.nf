@@ -15,9 +15,8 @@ process RUN_INTERPROSCAN_CPU {
         "${(value.toDouble() * task.attempt).round(1)}${unit ?: 'h'}"
     }
 
-
     output:
-    tuple val(meta), val(job), val(gpu), path("slurmJobId"), path("i6matches.json")
+    tuple val(meta), val(job), val(gpu), path("i6matches.json"), path("slurmJobId")
 
     script:
     def profileArgs  = job.iprscan.profile ? "-profile ${job.iprscan.profile}" : ""
@@ -49,14 +48,16 @@ process RUN_INTERPROSCAN_GPU {
     tuple val(meta), val(job), val(gpu)
 
     memory {
-        return params.appsConfig.resources[job.iprscan.resources].memory
+        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].memory.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
+        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'GB'}"
     }
     time {
-        return params.appsConfig.resources[job.iprscan.resources].time
+        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].time.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
+        "${(value.toDouble() * task.attempt).round(1)}${unit ?: 'h'}"
     }
 
     output:
-    tuple val(meta), val(job), val(gpu), path("slurmJobId"), path("i6matches.json")
+    tuple val(meta), val(job), val(gpu), path("i6matches.json"), path("slurmJobId")
 
     script:
     def profileArgs  = job.iprscan.profile ? "-profile ${job.iprscan.profile}" : ""
