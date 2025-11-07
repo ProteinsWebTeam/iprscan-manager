@@ -4,7 +4,6 @@ import java.nio.file.*
 
 class ProductionManager {
     static final def METHODS = ["analyse", "clean", "import", "index"]
-    static final def LOCAL_CONTAINERS = ["docker", "singularity"]
     static final def CLUSTER_CONTAINERS = ["singularity"]
 
     static final def PARAMS = [
@@ -218,52 +217,21 @@ class ProductionManager {
         return [config, error ?: null]
     }
 
-    static getIprscanProfiles(String cpu_executor, String gpu_executor, String container) {
+    static validateIprscanProfiles(Map<String, String> config, String device) {
         String error = ""
-        String cpuProfile = ""
-        String gpuProfile = ""
-
-        if (!cpu_executor && !gpu_executor) {
-            error = "No InterProSCan 6 executor provided for CPU or GPU devices"
-            return [cpuProfile, gpuProfile, error]
-        }
-
-        if (cpu_executor) {
-            (cpuProfile, gpuProfile, error) = validateProfile(cpu_executor, "CPU", container)
-            if (error) { return [cpuProfile, gpuProfile, error] }
-        } // else, local and no container defined - will run on baremetal
-        if (gpu_executor) {
-            (cpuProfile, gpuProfile, error) = validateProfile(gpu_executor, "GPU", container)
-            if (error) { return [cpuProfile, gpuProfile, error] }
-        } // else, local and no container defined - will run on baremetal
-
-        return [cpuProfile, gpuProfile, error]
-    }
-
-    static validateProfile(String executor, String device, String container) {
-        String errorMessage = ""
         String profile = ""
-        
-        if (executor == "local" && container) {
-            if (!LOCAL_CONTAINERS.contains(container)) {
-                errorMessage = "Unrecognised container '${container}' for the InterProScan local ${device} configuration"
-                return [profile, errorMessage]
-            }
-            profile = container
-        } else if (executor == "slurm") {
-            profile = executor
-            if (container) {
-                if (!CLUSTER_CONTAINERS.contains(container)) {
-                    errorMessage = "Unrecognised container '${container}' for the InterProScan cluster ${device} configuration"
-                    return [profile, errorMessage]
-                }
+
+        if (!config.executor || config.executor == "local" ) {
+            profile = config.profile
+        } else if (config.executor == "slurm") {
+            profile = config.executor
+            if (config.container && ! CLUSTER_CONTAINERS.contains(config.container)) {
                 profile += ",${container}"
             }
         } else {
-            errorMessage = "Unrecognised executor '${executor}' for the InterProScan ${device} configuration"
-            return [profile, errorMessage]
+            error = "Unrecognised executor '${executor}' for the InterProScan ${device} configuration"
         }
 
-        return [profile, errorMessage]
+        return [profile, error]
     }
 }

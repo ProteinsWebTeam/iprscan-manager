@@ -19,12 +19,13 @@ workflow INIT_PIPELINE {
         exit 1
     }
 
-    // [2] Validate the container runtime and scheduler
-    (cpuProfile, gpuProfile, error) = ProductionManager.getIprscanProfiles(
-        interproscan_params.cpu.executor,
-        interproscan_params.gpu.executor,
-        interproscan_params.container
-    )
+    // [2] Validate the container runtime, profiles and scheduler
+    (cpuProfile, error) = ProductionManager.validateIprscanProfiles(interproscan_params.cpu)
+    if (error) {
+        log.error error
+        exit 1
+    }
+    (gpuProfile, error) = ProductionManager.validateIprscanProfiles(interproscan_params.gpu)
     if (error) {
         log.error error
         exit 1
