@@ -12,6 +12,10 @@ process LOG_JOBS {
     val all_gpu_jobs                    // each = tuple val(meta), val(job), val(gpu)
     val iprscan_db_conf
 
+    output:
+    val all_cpu_jobs
+    val all_gpu_jobs
+
     exec:
     Database db = new Database(
         iprscan_db_conf.uri,

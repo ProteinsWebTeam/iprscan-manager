@@ -34,7 +34,7 @@ process GET_ANALYSES {
     db.close()
 }
 
-process GET_JOBS {
+process BUILD_JOBS {
     // Get sequences to analyse. Return two lists of Jobs: cpu and gpu jobs
     executor 'local'
 

@@ -1,8 +1,9 @@
 include { INIT_PIPELINE                              } from "./init"
-include { GET_ANALYSES; GET_JOBS                     } from "../../modules/prepare"
+include { GET_ANALYSES; BUILD_JOBS                   } from "../../modules/prepare"
 include { RUN_INTERPROSCAN_CPU; RUN_INTERPROSCAN_GPU } from "../../modules/interproscan"
 include { PERSIST_MATCHES                            } from "../../modules/persist/matches"
 include { LOG_JOBS                                   } from "../../modules/persist/jobs"
+include { CLEAN_FASTAS                               } from "../../modules/clean"
 
 workflow ANALYSE {
     take:
@@ -24,7 +25,7 @@ workflow ANALYSE {
         db_config["intprscan"]
     )
 
-    all_jobs = GET_JOBS(
+    all_jobs = BUILD_JOBS(
         db_config["intprscan"],
         applications_params,
         analyses,
@@ -87,4 +88,6 @@ workflow ANALYSE {
         all_gpu_jobs,
         db_config["intprscan"]
     )
+
+    CLEAN_FASTAS(LOG_JOBS.out)
 }
