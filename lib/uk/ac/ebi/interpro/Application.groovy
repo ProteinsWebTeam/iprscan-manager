@@ -1,6 +1,7 @@
 package uk.ac.ebi.interpro
 
-class Application implements Serializable { // Represents a member database release
+class Application implements Serializable {
+    // Represents a member database release
     String name
     String version
     String matchTable = null
