@@ -217,19 +217,21 @@ class ProductionManager {
         return [config, error ?: null]
     }
 
-    static validateIprscanProfiles(Map<String, String> config, String device) {
+    static validateIprscanProfiles(Map config, String device) {
         String error = ""
         String profile = ""
 
         if (!config.executor || config.executor == "local" ) {
-            profile = config.profile
+            profile = config.profile ? "${config.profile},${config.container}" : config.container
         } else if (config.executor == "slurm") {
             profile = config.executor
-            if (config.container && ! CLUSTER_CONTAINERS.contains(config.container)) {
-                profile += ",${container}"
+            if (config.container && !CLUSTER_CONTAINERS.contains(config.container)) {
+                error = "Unrecognised container '${config.container}' for ${device} on the cluster"
+            } else if (config.container) {
+                profile += ",${config.container}"
             }
         } else {
-            error = "Unrecognised executor '${executor}' for the InterProScan ${device} configuration"
+            error = "Unrecognised executor '${config.executor}' for the InterProScan ${device} configuration"
         }
 
         return [profile, error]
