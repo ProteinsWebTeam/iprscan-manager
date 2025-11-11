@@ -12,7 +12,7 @@ process RUN_INTERPROSCAN_CPU {
     }
     time {
         def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].time.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
-        "${(value.toDouble() * task.attempt).round(1)}${unit ?: 'h'}"
+        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'h'}"
     }
 
     output:
@@ -53,7 +53,7 @@ process RUN_INTERPROSCAN_GPU {
     }
     time {
         def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].time.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
-        "${(value.toDouble() * task.attempt).round(1)}${unit ?: 'h'}"
+        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'h'}"
     }
 
     output:
