@@ -86,7 +86,7 @@ process PERSIST_MATCHES {
             break
         case "pirsr":
             formatter      = this.&fmtPirsrMatches
-            matchPersister = db.&persistDefaultMatches
+            matchPersister = db.&persistPirsrMatches
             sitePersister  = db.&persistDefaultSites
             break
         case "prints":
