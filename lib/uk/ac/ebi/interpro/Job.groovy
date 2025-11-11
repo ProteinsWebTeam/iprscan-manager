@@ -21,7 +21,14 @@ class Job implements Serializable {
     String createdTime = null      // Time sbatch job is created - for insertion into the ANALYSIS_JOBS table
     Iprscan iprscan = null         // Iprscan class instance - stores executable and configuration for iprscan
 
-    Job(Integer analysis_id, String max_upi, String data_dir, String interpro_version, Boolean gpu, Application application) {
+    Job(
+        Integer analysis_id,
+        String max_upi,
+        String data_dir,
+        String interpro_version,
+        Boolean gpu,
+        Application application
+    ) {
         this.analysisId = analysis_id
         this.maxUpi = max_upi
         this.dataDir = data_dir
