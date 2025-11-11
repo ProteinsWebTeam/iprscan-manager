@@ -15,7 +15,6 @@ class Job implements Serializable {
     Application application        // Member database
     String fasta = null            // Str repr of the path to the FASTA file to be analysed
     Integer seqCount = null        // Number of sequences being analysed - for insertion into the ANALYSIS_JOBS table
-    String name = null             // Name given to the SLURM job - so we can retrieve information for the ANALYSIS_JOBS table
     String upiFrom = null          // Upper range of the analysed sequences - for insertion into the ANALYSIS_JOBS table
     String upiTo = null            // Lower range of the analysed sequences - for insertion into the ANALYSIS_JOBS table
     String createdTime = null      // Time sbatch job is created - for insertion into the ANALYSIS_JOBS table
@@ -67,10 +66,5 @@ class Job implements Serializable {
         this.upiFrom = upiFrom
         this.upiTo = upiTo
         this.createdTime = createdTime
-    }
-
-    void compileJobName() {
-        // File a name for the SLURM job so we can retrieve information for this job later
-        this.name = "analysis.id-${this.analysisId}_interpro.v-${interproVersion}_app-${application.name}_upi-${this.maxUpi}"
     }
 }

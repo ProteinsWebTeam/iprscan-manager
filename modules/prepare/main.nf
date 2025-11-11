@@ -28,7 +28,6 @@ process GET_ANALYSES {
         (maxUpi, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion, gpu) = row
         application = new Application(dbName, dbVersion, matchTable, siteTable)
         job = new Job(analysisId.toInteger(), maxUpi, dataDir, interproVersion, gpu, application)
-        job.compileJobName()
         analyses[maxUpi] << job
     }
     db.close()
