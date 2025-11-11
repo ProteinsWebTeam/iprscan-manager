@@ -1,3 +1,5 @@
+import uk.ac.ebi.interpro.Database
+
 process CLEAN_OBSOLETE_DATA {
     input:
     val iprscan_conf
@@ -126,4 +128,22 @@ process CLEAN_OBSOLETE_DATA {
     }
 
     db.close()
+}
+
+process CLEAN_FASTAS {
+    executor 'local'
+
+    input:
+    val all_cpu_jobs  // each = tuple val(meta), val(job), val(gpu)
+    val all_gpu_jobs  // each = tuple val(meta), val(job), val(gpu)
+
+    exec:
+    all_fastas = (all_cpu_jobs + all_gpu_jobs).collect { x, job, y -> job.fasta } as Set
+    all_fastas.each { fastaPath ->
+        try {
+            new File(fastaPath).delete()
+        } catch (Exception e) {
+            println "Failed to delete ${fastaPath}: ${e.message}"
+        }
+    }
 }

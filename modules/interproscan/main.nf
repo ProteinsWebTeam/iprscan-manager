@@ -5,23 +5,27 @@ process RUN_INTERPROSCAN_CPU {
 
     input:
     tuple val(meta), val(job), val(gpu)
-    val iprscan_exe
-    val profile
-    val work_dir
-    val max_workers
-    val iprscan_config
+
+    memory {
+        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].memory.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
+        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'GB'}"
+    }
+    time {
+        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].time.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
+        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'h'}"
+    }
 
     output:
-    tuple val(meta), val(job), val(gpu), path("slurmJobId"), path("i6matches.json")
+    tuple val(meta), val(job), val(gpu), path("i6matches.json"), path("slurmJobId")
 
     script:
-    def profileArgs  = profile ? "-profile ${profile}" : ""
-    def maxWorkers   = max_workers ? "--max-workers ${max_workers}" : ""
-    def configPath   = iprscan_config ? "-c ${iprscan_config}" : ""
+    def profileArgs  = job.iprscan.profile ? "-profile ${job.iprscan.profile}" : ""
+    def maxWorkers   = job.iprscan.maxWorkers ? "--max-workers ${job.iprscan.maxWorkers}" : ""
+    def configPath   = job.iprscan.configFile ? "-c ${job.iprscan.configFile}" : ""
 
     """
     echo \$SLURM_JOB_ID > slurmJobId
-    nextflow run ${iprscan_exe} \\
+    nextflow run ${job.iprscan.executable} \\
         --skip-interpro \\
         --formats json \\
         --no-matches-api \\
@@ -30,35 +34,39 @@ process RUN_INTERPROSCAN_CPU {
         --outprefix i6matches \\
         --applications ${job.application.name} \\
         --datadir ${job.dataDir} \\
-        -work-dir ${work_dir} \\
+        -work-dir ${job.iprscan.workDir} \\
         ${profileArgs} ${maxWorkers} ${configPath}
     """
 }
 
 process RUN_INTERPROSCAN_GPU {
     // errorStrategy needs to be here not the profiles for retry -> ignore: https://github.com/nextflow-io/nextflow/issues/563
-    errorStrategy { (task.attempt <= 2) ? 'retry' : 'ignore' }
-    label 'interproscan', 'use_gpu'
+    errorStrategy { (task.attempt <= 8) ? 'retry' : 'ignore' }
+    label 'interproscan', 'gpu'
 
     input:
     tuple val(meta), val(job), val(gpu)
-    val iprscan_exe
-    val profile
-    val work_dir
-    val max_workers
-    val iprscan_config
+
+    memory {
+        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].memory.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
+        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'GB'}"
+    }
+    time {
+        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].time.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
+        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'h'}"
+    }
 
     output:
     tuple val(meta), val(job), val(gpu), path("i6matches.json"), path("slurmJobId")
 
     script:
-    def profileArgs  = profile ? "-profile ${profile}" : ""
-    def maxWorkers   = max_workers ? "--max-workers ${max_workers}" : ""
-    def configPath   = iprscan_config ? "-c ${iprscan_config}" : ""
+    def profileArgs  = job.iprscan.profile ? "-profile ${job.iprscan.profile}" : ""
+    def maxWorkers   = job.iprscan.maxWorkers ? "--max-workers ${job.iprscan.maxWorkers}" : ""
+    def configPath   = job.iprscan.configFile ? "-c ${job.iprscan.configFile}" : ""
 
     """
     echo \$SLURM_JOB_ID > slurmJobId
-    nextflow run ${iprscan_exe} \\
+    nextflow run ${job.iprscan.executable} \\
         --skip-interpro \\
         --formats json \\
         --no-matches-api \\
@@ -67,7 +75,8 @@ process RUN_INTERPROSCAN_GPU {
         --outprefix i6matches \\
         --applications ${job.application.name} \\
         --datadir ${job.dataDir} \\
-        -work-dir ${work_dir} \\
-        ${profileArgs} ${maxWorkers} ${configPath}
+        -work-dir ${job.iprscan.workDir} \\
+        ${profileArgs} ${maxWorkers} ${configPath} \\
+        --use-gpu
     """
 }

@@ -1,3 +1,5 @@
+import uk.ac.ebi.interpro.Database
+
 process IMPORT_SEQUENCES {
     input:
     val iprscan_conf

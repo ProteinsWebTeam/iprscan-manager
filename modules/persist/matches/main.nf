@@ -11,6 +11,8 @@ import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.databind.node.ArrayNode
 import groovy.json.JsonOutput
 
+import uk.ac.ebi.interpro.Database
+
 process PERSIST_MATCHES {
     // Insert and persist the matches into ISPRO/intproscan(db)
     executor 'local'
@@ -84,7 +86,7 @@ process PERSIST_MATCHES {
             break
         case "pirsr":
             formatter      = this.&fmtPirsrMatches
-            matchPersister = db.&persistDefaultMatches
+            matchPersister = db.&persistPirsrMatches
             sitePersister  = db.&persistDefaultSites
             break
         case "prints":

@@ -1,3 +1,5 @@
+import uk.ac.ebi.interpro.ProductionManager
+
 include { ANALYSE } from "./subworkflows/analyse"
 include { CLEAN   } from "./subworkflows/clean"
 include { IMPORT  } from "./subworkflows/import"
@@ -7,12 +9,12 @@ workflow {
     println "# ${workflow.manifest.description}\n"
 
     if (params.keySet().any { it.equalsIgnoreCase("help") }) {
-        IPM.printHelp()
+        ProductionManager.printHelp()
         exit 0
     }
 
-    IPM.validateParams(params, log)
-    (methods, error) = IPM.validateMethods(params.methods)
+    ProductionManager.validateParams(params, log)
+    (methods, error) = ProductionManager.validateMethods(params.methods)
     if (error) {
         log.error error
         exit 1
@@ -22,7 +24,9 @@ workflow {
         if (method == "analyse") {
             ANALYSE(
                 params.databases,
-                params.interproscan
+                params.interproscan,
+                params.appsConfig,
+                params.batchSize
             )
         } else if (method == "clean") {
             CLEAN(

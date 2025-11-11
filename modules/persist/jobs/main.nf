@@ -1,5 +1,7 @@
 // Insert and persist the job data in the interproscan-db ANALYSIS_JOBS table
 
+import uk.ac.ebi.interpro.Database
+
 process LOG_JOBS {
     executor 'local'
 
@@ -9,6 +11,10 @@ process LOG_JOBS {
     val all_cpu_jobs                    // each = tuple val(meta), val(job), val(gpu)
     val all_gpu_jobs                    // each = tuple val(meta), val(job), val(gpu)
     val iprscan_db_conf
+
+    output:
+    val all_cpu_jobs
+    val all_gpu_jobs
 
     exec:
     Database db = new Database(
