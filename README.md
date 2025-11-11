@@ -1,10 +1,4 @@
-> [!CAUTION]
-> The InterProScan Production Manager is currently under active development and is not yet stable enough for a full release.
-
-> [!IMPORTANT]
-> Postgre-sql support is provided on the [`postgre-sql` branch](https://github.com/ProteinsWebTeam/iprscan-manager/pull/7).
-
-# InterProScan Production Manager (IPM)
+# Nextflow InterProScan Production Manager (NF-IPM)
 
 A Nextflow pipeline to coordinate the calculation, import and cleaning of InterProScan matches for the InterPro database.
 
@@ -22,8 +16,11 @@ git clone https://github.com/ProteinsWebTeam/iprscan-manager.git
 
 ## Configuration
 
-The IPM pipeline relies on one configuration file. A template can be found in
-`./conf/ipm.conf`.
+The IPM pipeline relies on two configuration file. Templates can be found in the `conf` directory.
+
+### General configuration
+
+The `conf/ipm.conf` is used for the general configuration of IPM and InterProScan.
 
 > [!WARNING]  
 > The InterProScan6 work directory will be extremely large! Make sure to point
@@ -41,12 +38,26 @@ The IPM pipeline relies on one configuration file. A template can be found in
         * password
         * engine: `oracle`
 * **interproscan** - _configure how InterProScan6 is run_
-    * **executable**: `"ebi-pf-team/interproscan6"` or path to a local InterProScan6 installation `main.nf` file
-    * **executor**: Run InterProScan6 locally (`local`) or on SLURM (`slurm`)
-    * **container**: Container runtime to use (e.g. `'docker'` or `'baremetal'` when the latter is supported)
-    * **workdir**: Path to build the workdir. This directory can become extremely large!
-    * **maxWorkers**: Set the `--maxWorkers` option in `interproscan6`
-    * **config**: [Optional] Path to an Iprscan 6 config file. This needs to be used when running liscened software, else iprscan won't know where to find the SignalP, Phobius and DeepTMHMM databases
+    * **device** - _specify the configuration for cpu or gpu execution_
+        * **executable**: `"ebi-pf-team/interproscan6"` or path to a local InterProScan6 installation `main.nf` file
+        * **executor**: Run InterProScan6 locally (`local`) or on SLURM (`slurm`)
+        * **container**: Container runtime to use (e.g. `'docker'` or `'baremetal'` when the latter is supported)
+        * **profile**: Specify any other InterProScan profiles to be used, e.g. `bulk`
+        * **workdir**: Path to build the workdir. This directory can become extremely large!
+        * **maxWorkers**: Set the `--maxWorkers` option in `interproscan6`
+        * **config**: [Optional] Path to an Iprscan 6 config file. This needs to be used when running liscened software, otherwise iprscan will not know where to find the SignalP, Phobius and DeepTMHMM databases
+
+### Application resource configuration
+
+The resources allocated to instance of InterProScan is dependent on the application (or member database) that is running. These values are defined in the `conf/applications.conf` file.
+
+The applications configuration is included by default in IPM so you only need to the `appsConfig` configuration in your configuration file if you are deferring from the values in this file.
+
+* **appsConfig**
+    **applications** _All applications default to the `light` configuration. To specify a different resource configuration list the application here_
+        * `<application-name> = "<label>"`
+    * **resources** _Define the resources for each label_
+        * `<label> { memory = "X.GB", time = "Y.h" }`
 
 ## Usage
 
@@ -86,7 +97,8 @@ The `IMPORT` subworkflow coordinates import protein sequences from UniProt into 
 The `ANALYSE` subworkflow coordinates running InterProScan for every "active" analysis in the `ISPRO.ANALYSIS` table,
 and persists all results in the `ISPRO` database.
 
-There are no optional arguments.
+There is one optional argument:
+1. `--batch-size` - The maximum number of sequences to be analysed by each instance of InterProScan 6
 
 For example:
 ```bash
