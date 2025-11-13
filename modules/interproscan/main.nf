@@ -17,7 +17,7 @@ process RUN_INTERPROSCAN_CPU {
     }
 
     output:
-    tuple val(meta), val(job), val(gpu), path("i6matches.json"), path("slurmJobId")
+    tuple val(meta), val(job), val(gpu), path("slurmJobId"), path("i6matches.json")
 
     script:
     def profileArgs  = job.iprscan.profile ? "-profile ${job.iprscan.profile}" : ""
@@ -59,7 +59,7 @@ process RUN_INTERPROSCAN_GPU {
     }
 
     output:
-    tuple val(meta), val(job), val(gpu), path("i6matches.json"), path("slurmJobId")
+    tuple val(meta), val(job), val(gpu), path("slurmJobId"), path("i6matches.json")
 
     script:
     def profileArgs  = job.iprscan.profile ? "-profile ${job.iprscan.profile}" : ""

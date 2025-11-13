@@ -41,7 +41,6 @@ class Iprscan implements Serializable {
     }
 
     void addResources(Map resourceMap, String appName, Boolean gpu) {
-        println "hello"
         def subbatched = resourceMap.subbatched.contains(appName) ? "subbatched" : "notSubbatched"
         def cpus = resourceMap.resources[subbatched]["cpus"].toString()
         def label = resourceMap.resources.get(appName, "light")        

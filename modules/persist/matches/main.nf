@@ -16,10 +16,11 @@ import uk.ac.ebi.interpro.Database
 process PERSIST_MATCHES {
     // Insert and persist the matches into ISPRO/intproscan(db)
     executor 'local'
-    errorStrategy 'ignore'
+    // errorStrategy 'ignore'
+    maxForks 1
 
     input:
-    tuple val(meta), val(job), val(gpu), val(matches_path), val(slurm_id_path)
+    tuple val(meta), val(job), val(gpu), val(slurm_id_path), val(matches_path)
     val iprscan_conf
 
     output:
