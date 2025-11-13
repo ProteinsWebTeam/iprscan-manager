@@ -8,14 +8,14 @@ class Iprscan implements Serializable {
     Path workDir         // Str repr of the path to the work dir
     String maxWorkers    // Max number of running parallel jobs in this iprscan instance
     String configFile    // Str repr of the path to the iprscan config file
-    Map<String, String> resources     // Name of the resource configuration
+    Map resources        // Name of the resource configuration
 
     Iprscan(
         String executable,
         String profile, 
         Path workDir,
         String maxWorkers,
-        String configFile,
+        String configFile
     ) {
         this.executable = executable
         this.profile = profile
@@ -41,21 +41,23 @@ class Iprscan implements Serializable {
     }
 
     void addResources(Map resourceMap, String appName, Boolean gpu) {
+        println "hello"
         def subbatched = resourceMap.subbatched.contains(appName) ? "subbatched" : "notSubbatched"
-        cpus = resourceMap[subbatched].cpus.toString()
+        def cpus = resourceMap.resources[subbatched]["cpus"].toString()
+        def label = resourceMap.resources.get(appName, "light")        
+        def (memValue, memUnit) = (resourceMap.resources[label].memory.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
+        def (timeValue, timeUnit) = (resourceMap.resources[label].time.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
 
-        def label = resourceMap.resources.get(appName, "light")
-        
-        def (memValue, unit) = (resourceMap.resources[label].memory.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
-        mem = "${(memValue.toDouble() * task.attempt).round(1)} ${unit ?: 'GB'}"
-        
-        def (timeValue, unit) = (presourceMap.resources[label].time.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
-        timeLimit = "${(timeValue.toDouble() * task.attempt).round(1)} ${unit ?: 'h'}"
-        
         this.resources = [
             cpus: cpus,
-            mem: mem,
-            time: timeLimit,
+            mem: [
+                value: memValue.toDouble(),
+                unit: memUnit,
+            ],
+            time: [
+                value: timeLimit.toDouble(),
+                unit: timeUnit
+            ],
             gpu: gpu
         ]
     }

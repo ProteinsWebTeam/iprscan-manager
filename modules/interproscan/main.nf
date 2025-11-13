@@ -10,10 +10,10 @@ process RUN_INTERPROSCAN_CPU {
         job.iprscan.resources.cpus
     }
     memory {
-        job.iprscan.resources.mem
+        "${(job.iprscan.resources.mem.value * task.attempt).round(1)} ${job.iprscan.resources.mem.unit ?: 'GB'}"
     }
     time {
-        job.iprscan.resources.time
+        "${(job.iprscan.resources.time.value * task.attempt).round(1)} ${job.iprscan.resources.time.unit ?: 'h'}"
     }
 
     output:
@@ -52,10 +52,10 @@ process RUN_INTERPROSCAN_GPU {
         job.iprscan.resources.cpus
     }
     memory {
-        job.iprscan.resources.mem
+        "${(job.iprscan.resources.mem.value * task.attempt).round(1)} ${job.iprscan.resources.mem.unit ?: 'GB'}"
     }
     time {
-        job.iprscan.resources.time
+        "${(job.iprscan.resources.time.value * task.attempt).round(1)} ${job.iprscan.resources.time.unit ?: 'h'}"
     }
 
     output:

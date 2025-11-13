@@ -115,7 +115,7 @@ process BUILD_JOBS {
                     job.application.name.toLowerCase(),
                     job.gpu
                 )
-
+                
                 def batchJob = new Job(
                     job.analysisId, fasta['upiFrom'],
                     job.dataDir, job.interproVersion,
@@ -125,7 +125,7 @@ process BUILD_JOBS {
                     fasta['upiFrom'], fasta['upiTo']
                 )
 
-                (useGpu ? gpuJobs : cpuJobs) << batchJob
+                (job.gpu ? gpuJobs : cpuJobs) << batchJob
             }
         }
     }
