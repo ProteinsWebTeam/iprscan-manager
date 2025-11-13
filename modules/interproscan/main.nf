@@ -1,7 +1,6 @@
 process RUN_INTERPROSCAN_CPU {
     // errorStrategy needs to be here not the profiles for retry -> ignore: https://github.com/nextflow-io/nextflow/issues/563
     errorStrategy { (task.attempt <= 2) ? 'retry' : 'ignore' }
-    label 'interproscan'
 
     input:
     tuple val(meta), val(job), val(gpu)
@@ -43,7 +42,7 @@ process RUN_INTERPROSCAN_CPU {
 process RUN_INTERPROSCAN_GPU {
     // errorStrategy needs to be here not the profiles for retry -> ignore: https://github.com/nextflow-io/nextflow/issues/563
     errorStrategy { (task.attempt <= 8) ? 'retry' : 'ignore' }
-    label 'interproscan', 'gpu'
+    label 'gpu'
 
     input:
     tuple val(meta), val(job), val(gpu)
