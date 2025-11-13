@@ -55,7 +55,7 @@ class Iprscan implements Serializable {
                 unit: memUnit,
             ],
             time: [
-                value: timeLimit.toDouble(),
+                value: timeValue.toDouble(),
                 unit: timeUnit
             ],
             gpu: gpu
