@@ -6,13 +6,14 @@ process RUN_INTERPROSCAN_CPU {
     input:
     tuple val(meta), val(job), val(gpu)
 
+    cpus {
+        job.iprscan.resources.cpus
+    }
     memory {
-        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].memory.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
-        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'GB'}"
+        job.iprscan.resources.mem
     }
     time {
-        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].time.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
-        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'h'}"
+        job.iprscan.resources.time
     }
 
     output:
@@ -47,13 +48,14 @@ process RUN_INTERPROSCAN_GPU {
     input:
     tuple val(meta), val(job), val(gpu)
 
+    cpus {
+        job.iprscan.resources.cpus
+    }
     memory {
-        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].memory.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
-        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'GB'}"
+        job.iprscan.resources.mem
     }
     time {
-        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].time.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
-        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'h'}"
+        job.iprscan.resources.time
     }
 
     output:
