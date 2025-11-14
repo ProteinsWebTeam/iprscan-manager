@@ -53,10 +53,14 @@ process BUILD_JOBS {
     // Convert the closure-based config to simple values immediately to avoid "cannot serialise context map" warning
     def simpleAppsConfig = [
         applications: [:],
+        subbatched: [],
         resources: [:]
     ]
     apps_config.applications.each { key, value ->
-        simpleAppsConfig.applications[key] = value
+        simpleAppsConfig.applications[key.toLowerCase()] = value
+    }
+    apps_config.subbatched.each { app ->
+        simpleAppsConfig.subbatched << app.toLowerCase()
     }
     apps_config.resources.each { resourceType, closure ->
         def result = [:]
@@ -97,20 +101,21 @@ process BUILD_JOBS {
     fastaFiles.each { upiFrom, fastaFilesList ->
         analyses[upiFrom].each { job ->
             fastaFilesList.each { fasta ->
-                def resources = simpleAppsConfig.resources.get(job.application.name.toLowerCase(), "light")
-                def useGpu = job.gpu
-                def iprscanSource = useGpu ? gpu_iprscan : cpu_iprscan
+                def iprscanSource = job.gpu ? gpu_iprscan : cpu_iprscan
 
-                def iprscanConfig = new Iprscan(
+                Iprscan iprscanConfig = new Iprscan(
                     iprscanSource.executable,
                     iprscanSource.profile,
                     iprscanSource.workDir,
                     iprscanSource.maxWorkers,
                     iprscanSource.configFile,
-                    resources,
-                    useGpu
                 )
-
+                iprscanConfig.addResources(
+                    simpleAppsConfig,
+                    job.application.name.toLowerCase(),
+                    job.gpu
+                )
+                
                 def batchJob = new Job(
                     job.analysisId, fasta['upiFrom'],
                     job.dataDir, job.interproVersion,
@@ -120,7 +125,7 @@ process BUILD_JOBS {
                     fasta['upiFrom'], fasta['upiTo']
                 )
 
-                (useGpu ? gpuJobs : cpuJobs) << batchJob
+                (job.gpu ? gpuJobs : cpuJobs) << batchJob
             }
         }
     }

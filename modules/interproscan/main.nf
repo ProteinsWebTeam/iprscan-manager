@@ -1,22 +1,22 @@
 process RUN_INTERPROSCAN_CPU {
     // errorStrategy needs to be here not the profiles for retry -> ignore: https://github.com/nextflow-io/nextflow/issues/563
     errorStrategy { (task.attempt <= 2) ? 'retry' : 'ignore' }
-    label 'interproscan'
 
     input:
     tuple val(meta), val(job), val(gpu)
 
+    cpus {
+        job.iprscan.resources.cpus
+    }
     memory {
-        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].memory.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
-        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'GB'}"
+        "${(job.iprscan.resources.mem.value * task.attempt).round(1)} ${job.iprscan.resources.mem.unit ?: 'GB'}"
     }
     time {
-        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].time.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
-        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'h'}"
+        "${(job.iprscan.resources.time.value * task.attempt).round(1)} ${job.iprscan.resources.time.unit ?: 'h'}"
     }
 
     output:
-    tuple val(meta), val(job), val(gpu), path("i6matches.json"), path("slurmJobId")
+    tuple val(meta), val(job), val(gpu), path("slurmJobId"), path("i6matches.json")
 
     script:
     def profileArgs  = job.iprscan.profile ? "-profile ${job.iprscan.profile}" : ""
@@ -42,22 +42,23 @@ process RUN_INTERPROSCAN_CPU {
 process RUN_INTERPROSCAN_GPU {
     // errorStrategy needs to be here not the profiles for retry -> ignore: https://github.com/nextflow-io/nextflow/issues/563
     errorStrategy { (task.attempt <= 8) ? 'retry' : 'ignore' }
-    label 'interproscan', 'gpu'
+    label 'gpu'
 
     input:
     tuple val(meta), val(job), val(gpu)
 
+    cpus {
+        job.iprscan.resources.cpus
+    }
     memory {
-        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].memory.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
-        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'GB'}"
+        "${(job.iprscan.resources.mem.value * task.attempt).round(1)} ${job.iprscan.resources.mem.unit ?: 'GB'}"
     }
     time {
-        def (value, unit) = (params.appsConfig.resources[job.iprscan.resources].time.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
-        "${(value.toDouble() * task.attempt).round(1)} ${unit ?: 'h'}"
+        "${(job.iprscan.resources.time.value * task.attempt).round(1)} ${job.iprscan.resources.time.unit ?: 'h'}"
     }
 
     output:
-    tuple val(meta), val(job), val(gpu), path("i6matches.json"), path("slurmJobId")
+    tuple val(meta), val(job), val(gpu), path("slurmJobId"), path("i6matches.json")
 
     script:
     def profileArgs  = job.iprscan.profile ? "-profile ${job.iprscan.profile}" : ""
