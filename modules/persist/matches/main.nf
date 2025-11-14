@@ -16,7 +16,7 @@ import uk.ac.ebi.interpro.Database
 process PERSIST_MATCHES {
     // Insert and persist the matches into ISPRO/intproscan(db)
     executor 'local'
-    // errorStrategy 'ignore'
+    errorStrategy 'ignore'
     maxForks 1
 
     input:
