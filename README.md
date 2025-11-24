@@ -86,12 +86,6 @@ For example:
 nextflow run main.nf -c conf/imp.conf --methods import --top-up
 ```
 
-### Import
-
-The `IMPORT` subworkflow coordinates import protein sequences from UniProt into the InterProScan database.
-
-...
-
 ### Analyse
 
 The `ANALYSE` subworkflow coordinates running InterProScan for every "active" analysis in the `ISPRO.ANALYSIS` table,
