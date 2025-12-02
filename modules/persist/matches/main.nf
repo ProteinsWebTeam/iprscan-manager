@@ -17,7 +17,6 @@ process PERSIST_MATCHES {
     // Insert and persist the matches into ISPRO/intproscan(db)
     executor 'local'
     errorStrategy 'ignore'
-    // maxForks 1
 
     input:
     tuple val(meta), val(job), val(gpu), val(slurm_id_path), val(matches_path)

@@ -6,7 +6,7 @@ A Nextflow pipeline to coordinate the calculation, import and cleaning of InterP
 
 ### Requirements:
 
-* Nextflow >= 24.10.4
+* Nextflow >= 25.04.6
 
 ### Installation:
 
@@ -85,12 +85,6 @@ For example:
 ```bash
 nextflow run main.nf -c conf/imp.conf --methods import --top-up
 ```
-
-### Import
-
-The `IMPORT` subworkflow coordinates import protein sequences from UniProt into the InterProScan database.
-
-...
 
 ### Analyse
 
