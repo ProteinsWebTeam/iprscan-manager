@@ -102,7 +102,6 @@ process BUILD_JOBS {
         analyses[upiFrom].each { job ->
             fastaFilesList.each { fasta ->
                 def iprscanSource = job.gpu ? gpu_iprscan : cpu_iprscan
-
                 Iprscan iprscanConfig = new Iprscan(
                     iprscanSource.executable,
                     iprscanSource.profile,
@@ -110,12 +109,13 @@ process BUILD_JOBS {
                     iprscanSource.maxWorkers,
                     iprscanSource.configFile,
                 )
+
                 iprscanConfig.addResources(
                     simpleAppsConfig,
-                    job.application.name.toLowerCase(),
+                    job.application.name.toLowerCase().replace("-", "_"),
                     job.gpu
                 )
-                
+
                 def batchJob = new Job(
                     job.analysisId, fasta['upiFrom'],
                     job.dataDir, job.interproVersion,

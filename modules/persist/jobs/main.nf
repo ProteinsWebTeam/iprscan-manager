@@ -127,8 +127,7 @@ def parseMemory(String mem_str, int analysis_id, String slurm_id) {
     } else if (mem_str.endsWith("G")) {
         memMb = (mem_str[0..-2].toInteger() * 1024).toInteger()
     } else if (mem_str.endsWith("M")) {
-        memMb = mem_str.toInteger()
-        println "[Warning] - Check the recorded memory for analysis ${analysis_id}, slurm job id ${slurm_id}"
+        memMb = mem_strmem_str[0..-2].toInteger()
     } else {
         throw new RuntimeException("Unsupported memory unit in '${mem_str}' (analysis id: ${analysis_id}, slurm id ${slurm_id})")
     }

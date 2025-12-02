@@ -1,3 +1,5 @@
+import uk.ac.ebi.interpro.ProductionManager
+
 workflow INIT_PIPELINE {
     take:
     database_params
@@ -5,7 +7,7 @@ workflow INIT_PIPELINE {
 
     main:
     // validate the database configurations
-    (dbConfig, error) = IPM.validateDbConfig(database_params, ["intprscan", "uniparc"])
+    (dbConfig, error) = ProductionManager.validateDbConfig(database_params, ["intprscan", "uniparc"])
     if (error) {
         log.error error
         exit 1
