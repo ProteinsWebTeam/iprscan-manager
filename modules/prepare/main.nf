@@ -1,5 +1,6 @@
 import uk.ac.ebi.interpro.Application
 import uk.ac.ebi.interpro.Database
+import uk.ac.ebi.interpro.FastaFile
 import uk.ac.ebi.interpro.Iprscan
 import uk.ac.ebi.interpro.Job
 
@@ -81,26 +82,18 @@ process BUILD_JOBS {
     // for each UPI range (from - to) build FASTA files of the protein sequences of a maxium batch_size
     def upiTo = db.getMaxUPI()
     def maxUPIs = analyses.keySet()
-    def fastaFiles = [:].withDefault { [] }
+    def fastaFiles = [:].withDefault { [] } // List<FastaFile>
     maxUPIs.each { String upiFrom ->
-        def allUpis = db.getUpiRange(upiFrom, upiTo)
-        def batched_upis = allUpis.collate(batch_size)
-        for (batch in batched_upis) {
-            def batchUpiFrom = batch[0]
-            def batchUpiTo = batch[-1]
-            def fasta = task.workDir.resolve("upiFrom_${batchUpiFrom}_upiTo_${batchUpiTo}.faa")
-            def seqCount = db.writeFasta(batchUpiFrom, batchUpiTo, fasta.toString())
-            fastaFiles[upiFrom] << ['path': fasta, 'count': seqCount, 'upiFrom': batchUpiFrom, 'upiTo': batchUpiTo]
-        }
+        fastaFiles[upiFrom].addAll( db.buildBatches(upiFrom, upiTo, task.workDir, batch_size) )
     }
     db.close()
 
     // Create a job for each batch per analysis, and assign the batches fasta file to the job
     cpuJobs = []
     gpuJobs = []
-    fastaFiles.each { upiFrom, fastaFilesList ->
-        analyses[upiFrom].each { job ->
-            fastaFilesList.each { fasta ->
+    fastaFiles.each { String upiFrom, List<FastaFile> fastaFilesList ->
+        analyses[upiFrom].each { Job job ->
+            fastaFilesList.each { FastaFile fasta ->
                 def iprscanSource = job.gpu ? gpu_iprscan : cpu_iprscan
                 Iprscan iprscanConfig = new Iprscan(
                     iprscanSource.executable,
@@ -117,12 +110,12 @@ process BUILD_JOBS {
                 )
 
                 def batchJob = new Job(
-                    job.analysisId, fasta['upiFrom'],
+                    job.analysisId, fasta.upiFrom,
                     job.dataDir, job.interproVersion,
                     job.gpu, job.application,
                     iprscanConfig,
-                    fasta['path'].toString(), fasta['count'],
-                    fasta['upiFrom'], fasta['upiTo']
+                    fasta.path, fasta.seqCount,
+                    fasta.upiFrom, fasta.upiTo
                 )
 
                 (job.gpu ? gpuJobs : cpuJobs) << batchJob

@@ -1,7 +1,9 @@
 package uk.ac.ebi.interpro
 
 import groovy.sql.Sql
+import java.nio.file.*
 
+import uk.ac.ebi.interpro.FastaFile
 
 class Database {
     private Sql sql
@@ -161,12 +163,54 @@ class Database {
         ).collect { it.UPI }
     }
 
+    List<FastaFile> buildBatches(String upi_from, String upi_to, Path taskDir, int batch_size) {
+        Integer count = 0
+        String batchStart = null
+        String batchEnd = null
+        Path fasta = null
+        Integer seqCount = null
+        List<FastaFile> fastas = []
+
+        this.sql.eachRow(
+            "SELECT UPI FROM IPRSCAN.PROTEIN WHERE UPI > ? AND UPI <= ? ORDER BY UPI",
+            [upi_from, upi_to]
+        ) { row ->
+            if (count % batch_size == 0) {
+                // start a new batch
+                batchStart = row.UPI
+                fasta = null
+            } 
+            batchEnd = row.UPI
+            count++
+
+            if (count % batch_size == 0) {
+                // end of batch, write the fasta file
+                fasta = taskDir.resolve("upiFrom_${batchStart}_upiTo_${batchEnd}.faa")
+                if (!fasta.exists()) {
+                    seqCount = this.writeFasta(batchStart, batchEnd, fasta.toString())
+                    fastas << new FastaFile(fasta.toString(), batchStart, batchEnd, seqCount)
+                }
+            }
+        }
+
+        // don't forget the last batch
+        if (count % batch_size && batchStart != null) {
+            fasta = taskDir.resolve("upiFrom_${batchStart}_upiTo_${batchEnd}.faa")
+            if (!fasta.exists()) {
+                seqCount = this.writeFasta(batchStart, batchEnd, fasta.toString())
+                fastas << new FastaFile(fasta.toString(), batchStart, batchEnd, seqCount)
+            }
+        }
+
+        return fastas
+    }
+
     Integer writeFasta(String upi_from, String upi_to, String fasta) {
         // Build a fasta file of protein seqs. Batch for speed.
         def writer = new File(fasta.toString()).newWriter()
         Integer seqCount = 0
         Integer offset = 0
-        Integer batchSize = 1000
+        Integer queryBatchSize = 1000
         String query = """
         SELECT upi, sequence
         FROM iprscan.protein
@@ -176,7 +220,7 @@ class Database {
         """
 
         while (true) {
-            def batch = this.sql.rows(query, [upi_from, upi_to, batchSize, offset])
+            def batch = this.sql.rows(query, [upi_from, upi_to, queryBatchSize, offset])
             for (row: batch) {
                 if (row.sequence) {
                     writer.writeLine(">${row.upi}")
@@ -191,7 +235,7 @@ class Database {
                 break
             }
 
-            offset += batchSize
+            offset += queryBatchSize
         }
 
         writer.close()
