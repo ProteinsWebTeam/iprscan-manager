@@ -16,8 +16,8 @@ import uk.ac.ebi.interpro.Database
 process PERSIST_MATCHES {
     // Insert and persist the matches into ISPRO/intproscan(db)
     executor 'local'
-    // errorStrategy 'ignore'
-    maxForks 1
+    errorStrategy 'ignore'
+    // maxForks 1
 
     input:
     tuple val(meta), val(job), val(gpu), val(slurm_id_path), val(matches_path)
@@ -71,6 +71,11 @@ process PERSIST_MATCHES {
         case "hamap":
             formatter      = this.&fmtHamapMatches
             matchPersister = db.&persistHamapMatches
+            sitePersister  = null
+            break
+        case "interpro_n":
+            formatter      = this.&fmtInterproNMatches
+            matchPersister = db.&persistInterproNMatches
             sitePersister  = null
             break
         case "mobidb lite":
@@ -327,6 +332,24 @@ def fmtHamapMatches(Map matchMetaData, JsonNode location) {
     ]
     siteValues = null
     return [matchValue, siteValues]
+}
+
+def fmtInterproNMatches(Map matchMetaData, JsonNode location) {
+    matchValue = [
+        matchMetaData.analysisId,
+        matchMetaData.application,
+        matchMetaData.majorVersion,
+        matchMetaData.minorVersion,
+        matchMetaData.upi,
+        matchMetaData.methodAc,
+        matchMetaData.modelAc,
+        location.get("start").asInt(),
+        location.get("end").asInt(),
+        matchMetaData.seqScore,
+        ftmFragments(location.get('location-fragments'))
+    ]
+    siteValue = null
+    return [matchValue, siteValue]
 }
 
 def fmtMobidbliteMatches(Map matchMetaData, JsonNode location) {
