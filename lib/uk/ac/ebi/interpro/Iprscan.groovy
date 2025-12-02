@@ -43,11 +43,12 @@ class Iprscan implements Serializable {
     void addResources(Map resourceMap, String appName, Boolean gpu) {
         def subbatched = resourceMap.subbatched.contains(appName) ? "subbatched" : "notSubbatched"
         def cpus = resourceMap.resources[subbatched]["cpus"].toString()
-        def label = resourceMap.resources.get(appName, "light")        
+        def label = resourceMap.applications.get(appName, "light")        
         def (memValue, memUnit) = (resourceMap.resources[label].memory.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
         def (timeValue, timeUnit) = (resourceMap.resources[label].time.toString() =~ /(\d+(?:\.\d+)?)(?:\s*\.?\s*(\w+))?/)[0][1,2]
 
         this.resources = [
+            label: label,
             cpus: cpus,
             mem: [
                 value: memValue.toDouble(),

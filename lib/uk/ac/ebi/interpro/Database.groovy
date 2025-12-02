@@ -292,6 +292,20 @@ class Database {
         }
     }
 
+    void persistInterproNMatches(values, matchTable) {
+        String insertQuery = """INSERT INTO iprscan.${matchTable} (
+            analysis_id, analysis_name, relno_major, relno_minor,
+            upi, method_ac, model_ac, seq_start, seq_end, seq_score, fragments
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
     void persistMobiDBliteMatches(values, matchTable) {
         String insertQuery = """INSERT INTO iprscan.${matchTable} (
             analysis_id, analysis_name, relno_major, relno_minor,
