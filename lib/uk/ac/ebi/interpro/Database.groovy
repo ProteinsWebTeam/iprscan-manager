@@ -242,8 +242,8 @@ class Database {
             this.sql.connection.autoCommit = false
             def stmt = this.sql.connection.prepareStatement(query)
             stmt.setFetchSize(1000) // Stream 1000 rows at a time
-            stnt.setString(1, upi_from)
-            stnt.setString(2, upi_to)
+            stmt.setString(1, upi_from)
+            stmt.setString(2, upi_to)
 
             def rs = stmt.executeQuery()
 
