@@ -171,24 +171,27 @@ class Database {
         Integer seqCount = null
         List<FastaFile> fastas = []
 
-        this.sql.eachRow(
-            "SELECT UPI FROM IPRSCAN.PROTEIN WHERE UPI > ? AND UPI <= ? ORDER BY UPI",
-            [upi_from, upi_to]
-        ) { row ->
-            if (count % batch_size == 0) {
-                // start a new batch
-                batchStart = row.UPI
-                fasta = null
-            } 
-            batchEnd = row.UPI
-            count++
+        this.sql.withStatement { stmt ->
+            stmt.setFetchSize(1000) // Stream 1000 rows at a time
+            this.sql.eachRow(
+                "SELECT UPI FROM IPRSCAN.PROTEIN WHERE UPI > ? AND UPI <= ? ORDER BY UPI",
+                [upi_from, upi_to]
+            ) { row ->
+                if (count % batch_size == 0) {
+                    // start a new batch
+                    batchStart = row.UPI
+                    fasta = null
+                } 
+                batchEnd = row.UPI
+                count++
 
-            if (count % batch_size == 0) {
-                // end of batch, write the fasta file
-                fasta = taskDir.resolve("upiFrom_${batchStart}_upiTo_${batchEnd}.faa")
-                if (!fasta.exists()) {
-                    seqCount = this.writeFasta(batchStart, batchEnd, fasta.toString())
-                    fastas << new FastaFile(fasta.toString(), batchStart, batchEnd, seqCount)
+                if (count % batch_size == 0) {
+                    // end of batch, write the fasta file
+                    fasta = taskDir.resolve("upiFrom_${batchStart}_upiTo_${batchEnd}.faa")
+                    if (!fasta.exists()) {
+                        seqCount = this.writeFasta(batchStart, batchEnd, fasta.toString())
+                        fastas << new FastaFile(fasta.toString(), batchStart, batchEnd, seqCount)
+                    }
                 }
             }
         }
