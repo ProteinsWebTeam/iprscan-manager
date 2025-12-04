@@ -164,25 +164,35 @@ class Database {
     }
 
     List<FastaFile> buildBatches(String upi_from, String upi_to, Path taskDir, int batch_size) {
-        Integer count = 0
-        String batchStart = null
-        String batchEnd = null
-        Path fasta = null
-        Integer seqCount = null
+        String query = """
+            SELECT UPI
+            FROM IPRSCAN.PROTEIN
+            WHERE UPI > ? AND UPI <= ?
+            ORDER BY UPI
+        """
+        def batchStart, batchEnd, fasta, seqCount
         List<FastaFile> fastas = []
+        Integer count = 0
 
-        this.sql.withStatement { stmt ->
+        // For PostgreSQL: disable auto-commit and set fetch size for proper streaming
+        def originalAutoCommit = this.sql.connection.autoCommit
+        try {
+            this.sql.connection.autoCommit = false
+            def stmt = this.sql.connection.prepareStatement(query)
             stmt.setFetchSize(1000) // Stream 1000 rows at a time
-            this.sql.eachRow(
-                "SELECT UPI FROM IPRSCAN.PROTEIN WHERE UPI > ? AND UPI <= ? ORDER BY UPI",
-                [upi_from, upi_to]
-            ) { row ->
+            stmt.setString(1, upi_from)
+            stmt.setString(2, upi_to)
+            def rs = stmt.executeQuery()
+
+            while (rs.next()) {
+                String upi = rs.getString(1)
+
                 if (count % batch_size == 0) {
                     // start a new batch
-                    batchStart = row.UPI
+                    batchStart = upi
                     fasta = null
                 } 
-                batchEnd = row.UPI
+                batchEnd = upi
                 count++
 
                 if (count % batch_size == 0) {
@@ -194,9 +204,14 @@ class Database {
                     }
                 }
             }
+
+            rs.close()
+            stmt.close()
+        } finally {
+            this.sql.connection.autoCommit = originalAutoCommit
         }
 
-        // don't forget the last batch
+        // Don't forget the last batch
         if (count % batch_size && batchStart != null) {
             fasta = taskDir.resolve("upiFrom_${batchStart}_upiTo_${batchEnd}.faa")
             if (!fasta.exists()) {
@@ -211,9 +226,9 @@ class Database {
     Integer writeFasta(String upi_from, String upi_to, String fasta) {
         // Build a fasta file of protein seqs. Batch for speed.
         def writer = new File(fasta.toString()).newWriter()
+        Integer queryBatchSize = 1000
         Integer seqCount = 0
         Integer offset = 0
-        Integer queryBatchSize = 1000
         String query = """
         SELECT upi, sequence
         FROM iprscan.protein
@@ -222,27 +237,37 @@ class Database {
         LIMIT ? OFFSET ?
         """
 
-        while (true) {
-            def batch = this.sql.rows(query, [upi_from, upi_to, queryBatchSize, offset])
-            for (row: batch) {
-                if (row.sequence) {
-                    writer.writeLine(">${row.upi}")
-                    for (int i = 0; i < row.sequence.length(); i += 60) {
-                        int end = Math.min(i + 60, row.sequence.length())
-                        writer.writeLine(row.sequence.substring(i, end))
+        def originalAutoCommit = this.sql.connection.autoCommit
+        try {
+            this.sql.connection.autoCommit = false
+            def stmt = this.sql.connection.prepareStatement(query)
+            stmt.setFetchSize(1000) // Stream 1000 rows at a time
+            stnt.setString(1, upi_from)
+            stnt.setString(2, upi_to)
+
+            def rs = stmt.executeQuery()
+
+            while (rs.next()) {
+                String upi = rs.getString(1)
+                String sequence = rs.getString(2)
+
+                if (sequence) {
+                    writer.writeLine(">${upi}")
+                    for (int i = 0; i < sequence.length(); i += 60) {
+                        int end = Math.min(i + 60, sequence.length())
+                        writer.writeLine(sequence.substring(i, end))
                     }
                     seqCount += 1
                 }
             }
-            if (batch.isEmpty()) {
-                break
-            }
 
-            offset += queryBatchSize
+            rs.close()
+            stmt.close()
+        } finally {
+            this.sql.connection.autoCommit = originalAutoCommit
         }
 
         writer.close()
-
         return seqCount
     }
 
