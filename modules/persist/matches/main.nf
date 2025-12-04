@@ -16,7 +16,7 @@ import uk.ac.ebi.interpro.Database
 process PERSIST_MATCHES {
     // Insert and persist the matches into ISPRO/intproscan(db)
     executor 'local'
-    errorStrategy 'ignore'
+    // errorStrategy 'ignore'
 
     input:
     tuple val(meta), val(job), val(gpu), val(slurm_id_path), val(matches_path)
@@ -92,7 +92,8 @@ process PERSIST_MATCHES {
         case "pirsr":
             formatter      = this.&fmtPirsrMatches
             matchPersister = db.&persistPirsrMatches
-            sitePersister  = db.&persistDefaultSites
+            // sitePersister  = db.&persistDefaultSites
+            sitePersister  = null
             break
         case "prints":
             formatter      = this.&fmtPrintsMatches
