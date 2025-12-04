@@ -234,7 +234,6 @@ class Database {
         FROM iprscan.protein
         WHERE upi BETWEEN ? AND ?
         ORDER BY upi
-        LIMIT ? OFFSET ?
         """
 
         def originalAutoCommit = this.sql.connection.autoCommit
