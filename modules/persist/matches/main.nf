@@ -391,7 +391,9 @@ def fmtPantherMatches(Map matchMetaData, JsonNode location) {
         location.get("hmmLength").asInt(),
         location.get("envelopeStart").asInt(),
         location.get("envelopeEnd").asInt(),
-        matchMetaData.ancestralNodeID
+        matchMetaData.ancestralNodeID,
+        getBigDecimal(location, "score"),
+        getBigDecimal(location, "evalue")
     ]
     siteValues = null
     return [matchValue, siteValues]
