@@ -289,8 +289,8 @@ def fmtCddMatches(Map matchMetaData, JsonNode location) {
         location.get("start").asInt(),
         location.get("end").asInt(),
         ftmFragments(location.get('location-fragments')),
-        matchMetaData.seqScore,
-        matchMetaData.seqEvalue
+        getBigDecimal(location, "score"),
+        getBigDecimal(location, "evalue")
     ]
     siteValues = []
     location.sites.each { site ->
