@@ -337,7 +337,7 @@ class Database {
         String insertQuery = """INSERT INTO iprscan.${matchTable} (
             analysis_id, analysis_name, relno_major, relno_minor,
             upi, method_ac, model_ac, seq_start, seq_end, fragments,
-            seqscore, seqevalue
+            score, evalue
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -397,9 +397,9 @@ class Database {
             analysis_id, analysis_name, relno_major, relno_minor,
             upi, method_ac, model_ac, seq_start, seq_end, fragments,
             seqscore, seqevalue, hmm_bounds, hmm_start, hmm_end,
-            hmm_length, env_start, env_end, an_node_id
+            hmm_length, env_start, env_end, an_node_id, score, evalue
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
             values.each { row ->
@@ -504,7 +504,7 @@ class Database {
         String insertQuery = """INSERT INTO iprscan.${matchTable} (
             analysis_id, analysis_name, relno_major, relno_minor,
             upi, method_ac, model_ac, seq_start, seq_end, fragments,
-            seqevalue, hmm_length
+            evalue, hmm_length
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
