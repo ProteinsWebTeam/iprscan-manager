@@ -587,7 +587,7 @@ def fmtSuperfamilyMatches(Map matchMetaData, JsonNode location) {
         location.get("start").asInt(),
         location.get("end").asInt(),
         ftmFragments(location.get('location-fragments')),
-        matchMetaData.seqEvalue,
+        getBigDecimal(location, "evalue"),
         location.get("hmmLength").asInt()
     ]
     siteValue = null
