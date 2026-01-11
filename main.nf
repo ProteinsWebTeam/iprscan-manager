@@ -26,7 +26,10 @@ workflow {
                 params.databases,
                 params.interproscan,
                 params.appsConfig,
-                params.batchSize
+                params.batchSize,
+                params.maxJobsPerAnalysis,
+                params.list,
+                params.analysisIds
             )
         } else if (method == "clean") {
             CLEAN(
