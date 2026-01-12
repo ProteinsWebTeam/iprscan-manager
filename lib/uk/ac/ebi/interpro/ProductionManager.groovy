@@ -188,9 +188,12 @@ class ProductionManager {
         return Files.isRegularFile(path) ? path.toRealPath() : null
     }
 
-    static validateConfig(String configPath) {
+    static validateLicenseConfig(String configPath) {
+        if (!configPath) {
+            return [null, null]
+        }
         def path = configPath ? resolveFile(configPath) : null
-        return path ? [path, null] : [null, "Could not locate iprscan configuration file '${path}'"]
+        return path ? [path, null] : [null, "Could not locate iprscan configuration file '${configPath}'"]
     }
 
     static validateDbConfig(Map databaseConfig, List<String> databases) {
