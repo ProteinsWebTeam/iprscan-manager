@@ -60,7 +60,13 @@ workflow ANALYSE {
         ch_gpu_jobs = EXPORT_FASTA_GPU(db_config["intprscan"], ch_gpu_jobs)
 
         // TODO: skip jobs that have already been run successfully
-        // TODO: skip jobs that have zero sequences, and persist the jobs as successful with zero matches
+        
+        def seqCountOf = { tuple -> tuple[1].seqCount ?: 0 }
+        ch_cpu_zero_seq_jobs = ch_cpu_jobs.filter { seqCountOf(it) == 0 }
+        ch_cpu_jobs = ch_cpu_jobs.filter { seqCountOf(it) > 0 }
+        ch_gpu_zero_seq_jobs = ch_gpu_jobs.filter { seqCountOf(it) == 0 }
+        ch_gpu_jobs = ch_gpu_jobs.filter { seqCountOf(it) > 0 }
+        // TODO: persist jobs with zero sequences as successful
 
         /*
         If RUN_INTERPROSCAN is succesful, persist the matches and update the ANALYSIS_JOBS table.
