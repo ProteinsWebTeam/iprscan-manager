@@ -121,7 +121,7 @@ process BUILD_JOBS {
         if (startUpi == null || startUpi.isEmpty()) {
             startUpi = "UPI0000000000"
         }
-        def startInt = upi_to_int(startUpi)
+        def startInt = upi_to_int(startUpi) + 1
 
         def iprscanSource = analysisJob.gpu ? gpu_iprscan : cpu_iprscan
         Iprscan iprscanConfig = new Iprscan(
@@ -138,9 +138,9 @@ process BUILD_JOBS {
             analysisJob.gpu
         )
 
-        while (startInt < maxUpiInt &&
+        while (startInt <= maxUpiInt &&
             (max_jobs_per_analysis <= 0 || num_jobs < max_jobs_per_analysis)) {
-            def endInt = (startInt + batchSize <= maxUpiInt) ? (startInt + batchSize) : maxUpiInt
+            def endInt = (startInt + batchSize - 1 <= maxUpiInt) ? (startInt + batchSize - 1) : maxUpiInt
             def upiFrom = int_to_upi(startInt)
             def upiTo = int_to_upi(endInt)
 
@@ -155,7 +155,7 @@ process BUILD_JOBS {
 
             (analysisJob.gpu ? gpuJobs : cpuJobs) << batchJob
 
-            startInt = endInt
+            startInt = endInt + 1
             num_jobs += 1
         }
     }
