@@ -162,6 +162,9 @@ class ProductionManager {
     }
 
     static resolveDirectory(String dirPath, boolean mustBeWritable = false) {
+        if (!dirPath) {
+            return [null, null]
+        }
         Path path = Paths.get(dirPath)
         if (Files.exists(path)) {
             if (!Files.isDirectory(path)) {

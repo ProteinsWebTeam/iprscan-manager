@@ -22,6 +22,7 @@ process RUN_INTERPROSCAN_CPU {
     def profileArgs  = job.iprscan.profile ? "-profile ${job.iprscan.profile}" : ""
     def maxWorkers   = job.iprscan.maxWorkers ? "--max-workers ${job.iprscan.maxWorkers}" : ""
     def configPath   = job.iprscan.configFile ? "-c ${job.iprscan.configFile}" : ""
+    def workDirPath  = job.iprscan.workDir ? "-work-dir ${job.iprscan.workDir}" : ""
 
     """
     echo \$SLURM_JOB_ID > slurmJobId
@@ -34,8 +35,7 @@ process RUN_INTERPROSCAN_CPU {
         --outprefix i6matches \\
         --applications ${job.application.name} \\
         --datadir ${job.dataDir} \\
-        -work-dir ${job.iprscan.workDir} \\
-        ${profileArgs} ${maxWorkers} ${configPath}
+        ${workDirPath} ${profileArgs} ${maxWorkers} ${configPath}
     """
 }
 
