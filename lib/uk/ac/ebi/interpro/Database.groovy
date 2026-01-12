@@ -230,10 +230,9 @@ class Database {
         Integer seqCount = 0
         Integer offset = 0
         String query = """
-        SELECT upi, sequence
-        FROM iprscan.protein
-        WHERE upi BETWEEN ? AND ?
-        ORDER BY upi
+            SELECT upi, sequence
+            FROM iprscan.protein
+            WHERE upi BETWEEN ? AND ?
         """
 
         def originalAutoCommit = this.sql.connection.autoCommit
