@@ -51,12 +51,12 @@ workflow INIT_PIPELINE {
     }
 
     // [5] Validate the iprscan config file is one is specified
-    (cpuIprscanConfig, error) = ProductionManager.validateConfig(interproscan_params.cpu.config)
+    (cpuIprscanConfig, error) = ProductionManager.validateLicenseConfig(interproscan_params.cpu.licensedConfig)
     if (error) {
         log.error error
         exit 1
     }
-    (gpuIprscanConfig, error) = ProductionManager.validateConfig(interproscan_params.gpu.config)
+    (gpuIprscanConfig, error) = ProductionManager.validateLicenseConfig(interproscan_params.gpu.licensedConfig)
     if (error) {
         log.error error
         exit 1
