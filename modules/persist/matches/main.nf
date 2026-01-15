@@ -16,7 +16,7 @@ import uk.ac.ebi.interpro.Database
 process PERSIST_MATCHES {
     // Insert and persist the matches into ISPRO/intproscan(db)
     executor 'local'
-    // errorStrategy 'ignore'
+    errorStrategy 'ignore'
 
     input:
     tuple val(meta), val(job), val(gpu), val(slurm_id_path), val(matches_path)
@@ -26,6 +26,25 @@ process PERSIST_MATCHES {
     tuple val(meta), val(job), val(gpu), val(slurm_id_path)
 
     exec:
+    seqLengths = [:]
+    currentId = null
+    currentSeqLen = 0
+    fasta = new File(job.fasta)
+    fasta.eachLine { line ->
+        if (line.startsWith(">")) {
+            if (currentId) {
+                seqLengths[currentId] = currentSeqLen
+            }
+            currentId = line.trim().substring(1).split(/\s+/)[0]
+            currentSeqLen = 0
+        } else {
+            currentSeqLen += line.trim().length()
+        }
+    }
+    if (currentId) {
+        seqLengths[currentId] = currentSeqLen
+    }
+
     Database db = new Database(
         iprscan_conf.uri,
         iprscan_conf.user,
@@ -72,6 +91,7 @@ process PERSIST_MATCHES {
             matchPersister = db.&persistHamapMatches
             sitePersister  = null
             break
+        case "interpro-n":
         case "interpro_n":
             formatter      = this.&fmtInterproNMatches
             matchPersister = db.&persistInterproNMatches
@@ -92,8 +112,7 @@ process PERSIST_MATCHES {
         case "pirsr":
             formatter      = this.&fmtPirsrMatches
             matchPersister = db.&persistPirsrMatches
-            // sitePersister  = db.&persistDefaultSites
-            sitePersister  = null
+            sitePersister  = db.&persistDefaultSites
             break
         case "prints":
             formatter      = this.&fmtPrintsMatches
@@ -140,7 +159,7 @@ process PERSIST_MATCHES {
     // don't put inside a try/catch, we want the error to cause the process to end and mark the job as failed
     streamJson(matches_path.toString(), mapper) { results -> // streaming only the "results" Json Array
         def upi = results.get("xref")[0].get("id").asText()
-        def seqLength = results.get("seqLength")
+        def seqLength = seqLengths.get(upi)
         results.get("matches").each { match ->
             def graphscan = match.get("graphscan")?.asText(null)  // returns null if key is missing
             def ancestralNodeID = match.get("ancestralNodeID")?.asText(null)  // returns null if key is missing
@@ -186,8 +205,6 @@ process PERSIST_MATCHES {
         sitePersister(siteValues, job.application.siteTable)
         siteValues.clear()
     }
-
-    db.close()
 }
 
 def getBigDecimal(JsonNode match, String key) {
@@ -292,7 +309,7 @@ def fmtCddMatches(Map matchMetaData, JsonNode location) {
         getBigDecimal(location, "score"),
         getBigDecimal(location, "evalue")
     ]
-    siteValues = []
+    def siteValues = []
     location.sites.each { site ->
         site.siteLocations.each { siteLoc ->
             siteValues << [
@@ -422,7 +439,7 @@ def fmtPirsrMatches(Map matchMetaData, JsonNode location) {
         getBigDecimal(location, "score"),
         getBigDecimal(location, "evalue")
     ]
-    siteValues = []
+    def siteValues = []
     location.sites.each { site ->
         site.siteLocations.each { siteLoc ->
             siteValues << [
@@ -527,7 +544,7 @@ def fmtSfldMatches(Map matchMetaData, JsonNode location) {
         getBigDecimal(location, "score"),
         getBigDecimal(location, "evalue")
     ]
-    siteValues = []
+    def siteValues = []
     location.sites.each { site ->
         site.siteLocations.each { siteLoc ->
             siteValues << [
@@ -639,12 +656,33 @@ def streamJson(String filePath, ObjectMapper mapper, Closure closure) {
     } catch (FileNotFoundException e) {
         throw new Exception("File not found: $filePath -- $e\n${e.getCause()}", e)
     } catch (JsonParseException e) {
-        throw new Exception("Error parsing JSON file: $filePath -- $e\n${e.getCause()}", e)
+        def loc = e.getLocation()
+        throw new Exception(
+            """Error parsing JSON file: $filePath
+            Message: ${e.getMessage()}
+            Line: ${loc?.lineNr}, Column: ${loc?.columnNr}
+            Cause: ${e.getCause()}""", e)
     } catch (JsonMappingException e) {
-        throw new Exception("Error mapping JSON content for file: $filePath -- $e\n${e.getCause()}", e)
-    } catch (IOException e) {
-        throw new Exception("IO error reading file: $filePath -- $e\n${e.getCause()}", e)
-    } catch (Exception e) {
-        throw new Exception("Error parsing JSON file $filePath -- $e\n${e.getCause()}", e)
+        def loc = e.getLocation()
+        throw new Exception(
+            """Error mapping JSON content for file: $filePath
+            Message: ${e.getMessage()}
+            Line: ${loc?.lineNr}, Column: ${loc?.columnNr}
+            Path: ${e.getPathReference()}
+            Cause: ${e.getCause()}""", e)
     }
+    catch (IOException e) {
+            throw new Exception("IO error reading file: $filePath -- $e\n${e.getCause()}", e)
+    } catch (Exception e) {
+        StringWriter sw = new StringWriter()
+        e.printStackTrace(new PrintWriter(sw))
+        throw new Exception(
+            """Error parsing JSON file $filePath
+            Exception: ${e.getClass().name}
+            Message: ${e.getMessage()}
+            Cause: ${e.getCause()}
+            Stacktrace:
+            ${sw.toString()}""", e)
+    }
+
 }
