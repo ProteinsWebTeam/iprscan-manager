@@ -1,5 +1,6 @@
 import uk.ac.ebi.interpro.Database
 import java.nio.file.*
+import java.nio.file.attribute.BasicFileAttributes
 import static java.nio.file.FileVisitResult.*
 
 process CLEAN_OBSOLETE_DATA {
@@ -158,13 +159,13 @@ process CLEAN_FASTAS {
 
 process CLEAN_WORKDIRS {
     // Delete InterProScan6 workdirs
-    exceutor 'local'
+    executor 'local'
 
     input:
     val all_cpu_jobs  // each = tuple val(meta), val(job), val(gpu)
     val all_gpu_jobs  // each = tuple val(meta), val(job), val(gpu)
 
-    exce:
+    exec:
     def workDir = task.workdir.parent.parent
     Files.walkFileTree(workDir, new SimpleFileVisitor<Path>() {
         @Override

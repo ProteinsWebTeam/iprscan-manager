@@ -12,13 +12,11 @@ class Iprscan implements Serializable {
     Iprscan(
         String executable,
         String profile, 
-        Path workDir,
         String maxWorkers,
         String configFile
     ) {
         this.executable = executable
         this.profile = profile
-        this.workDir = workDir
         this.maxWorkers = maxWorkers
         this.configFile = configFile
     }
@@ -26,14 +24,12 @@ class Iprscan implements Serializable {
     Iprscan(
         String executable,
         String profile,
-        Path workDir,
         def maxWorkers, 
         String configFile,
         Boolean gpu
     ) {
         this.executable = executable
         this.profile = profile
-        this.workDir = workDir
         this.maxWorkers = maxWorkers ? maxWorkers.toString() : null
         this.configFile = configFile
         this.resources = ["gpu": gpu]
