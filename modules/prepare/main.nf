@@ -54,14 +54,10 @@ process BUILD_JOBS {
     // Convert the closure-based config to simple values immediately to avoid "cannot serialise context map" warning
     def simpleAppsConfig = [
         applications: [:],
-        subbatched: [],
         resources: [:]
     ]
     apps_config.applications.each { key, value ->
         simpleAppsConfig.applications[key.toLowerCase()] = value
-    }
-    apps_config.subbatched.each { app ->
-        simpleAppsConfig.subbatched << app.toLowerCase()
     }
     apps_config.resources.each { resourceType, closure ->
         def result = [:]

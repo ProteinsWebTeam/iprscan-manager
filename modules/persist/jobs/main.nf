@@ -107,8 +107,13 @@ def getSlurmJobData(String slurm_id_file, int analysis_id) {
     if (batchLine && mainJobLine) {
         mainLineFields = mainJobLine.split("\\|")
         batchFields    = batchLine.split("\\|")
-        startTime  = java.sql.Timestamp.valueOf(batchFields[4].replace("T", " "))
-        endTime    = java.sql.Timestamp.valueOf(batchFields[5].replace("T", " "))
+        try {
+            startTime  = java.sql.Timestamp.valueOf(batchFields[4].replace("T", " "))
+            endTime    = java.sql.Timestamp.valueOf(batchFields[5].replace("T", " "))
+        } catch (Exception exc) { // arises when the job was running locally
+            startTime  = java.sql.Timestamp.valueOf(batchFields[4].replace("T", " "))
+            endTime    = null
+        }
         maxMemory  = parseMemory(batchFields[2], analysis_id, slurmId)    // maxRss
         limMemory  = parseMemory(mainLineFields[1], analysis_id, slurmId) // ReqMem
         cpuTimeStr = batchFields[6]                                       // TotalCPU
