@@ -168,31 +168,23 @@ process CLEAN_WORKDIRS {
     def workDir = task.workDir.parent.parent
 
     Files.walkFileTree(workDir, new SimpleFileVisitor<Path>() {
-
         @Override
         FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes outerAttrs) {
             if (dir.fileName.toString() == 'work') {
-
                 // Delete contents without following symlinks
+                // This stops the InterProScan6 data files from being deleted
                 Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
-
                     @Override
                     FileVisitResult visitFile(Path file, BasicFileAttributes innerAttrs) {
-                        if (Files.isSymbolicLink(file)) {
-                            Files.delete(file)
-                        } else {
-                            Files.delete(file)
-                        }
+                        Files.delete(file)
                         return CONTINUE
                     }
-
                     @Override
                     FileVisitResult postVisitDirectory(Path d, IOException exc) {
                         Files.delete(d)
                         return CONTINUE
                     }
                 })
-
                 return SKIP_SUBTREE
             }
             return CONTINUE
