@@ -5,7 +5,6 @@ import java.nio.file.*
 class Iprscan implements Serializable {
     String executable    // Executable cmd/path to run iprscan
     String profile       // Comma separated list of interproscan profiles
-    Path workDir         // Str repr of the path to the work dir
     String maxWorkers    // Max number of running parallel jobs in this iprscan instance
     String configFile    // Str repr of the path to the iprscan config file
     Map resources        // Name of the resource configuration

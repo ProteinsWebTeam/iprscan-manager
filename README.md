@@ -43,7 +43,6 @@ The `conf/ipm.conf` is used for the general configuration of IPM and InterProSca
         * **executor**: Run InterProScan6 locally (`local`) or on SLURM (`slurm`)
         * **container**: Container runtime to use (e.g. `'docker'` or `'baremetal'` when the latter is supported)
         * **profile**: Specify any other InterProScan profiles to be used, e.g. `bulk`
-        * **workdir**: Path to build the workdir. This directory can become extremely large!
         * **maxWorkers**: Set the `--maxWorkers` option in `interproscan6`
         * **licensedConfig**: [Optional] Path to an Iprscan 6 config file. This needs to be used when running liscened software, otherwise iprscan will not know where to find the SignalP, Phobius and DeepTMHMM databases
 

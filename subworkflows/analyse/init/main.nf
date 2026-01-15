@@ -31,26 +31,14 @@ workflow INIT_PIPELINE {
         exit 1
     }
 
-    // [3] Validate the work dir
-    (cpuWorkDir, error) = ProductionManager.resolveDirectory(interproscan_params.cpu.workdir, true)
-    if (error) {
-        log.error error
-        exit 1
-    }
-    (gpuWorkDir, error) = ProductionManager.resolveDirectory(interproscan_params.gpu.workdir, true)
-    if (error) {
-        log.error error
-        exit 1
-    }
-
-    // [4] Validate database configuration
+    // [3] Validate database configuration
     (dbConfig, error) = ProductionManager.validateDbConfig(database_params, ["intprscan"])
     if (error) {
         log.error error
         exit 1
     }
 
-    // [5] Validate the iprscan config file is one is specified
+    // [4] Validate the iprscan config file is one is specified
     (cpuIprscanConfig, error) = ProductionManager.validateLicenseConfig(interproscan_params.cpu.licensedConfig)
     if (error) {
         log.error error
@@ -65,7 +53,6 @@ workflow INIT_PIPELINE {
     cpuIprscan = new Iprscan(
         cpuExecutable,
         cpuProfile,
-        cpuWorkDir,
         interproscan_params.cpu.maxWorkers,
         cpuIprscanConfig,
         false
@@ -73,7 +60,6 @@ workflow INIT_PIPELINE {
     gpuIprscan = new Iprscan(
         gpuExecutable,
         gpuProfile,
-        gpuWorkDir,
         interproscan_params.cpu.maxWorkers,
         gpuIprscanConfig,
         true
