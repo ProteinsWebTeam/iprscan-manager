@@ -5,9 +5,7 @@ process RUN_INTERPROSCAN_CPU {
     input:
     tuple val(meta), val(job), val(gpu)
 
-    cpus {
-        job.iprscan.resources.cpus
-    }
+    cpus { 8 }
     memory {
         "${(job.iprscan.resources.mem.value * task.attempt).round(1)} ${job.iprscan.resources.mem.unit ?: 'GB'}"
     }
@@ -20,7 +18,6 @@ process RUN_INTERPROSCAN_CPU {
 
     script:
     def profileArgs  = job.iprscan.profile ? "-profile ${job.iprscan.profile}" : ""
-    def maxWorkers   = job.iprscan.maxWorkers ? "--max-workers ${job.iprscan.maxWorkers}" : ""
     def configPath   = job.iprscan.configFile ? "-c ${job.iprscan.configFile}" : ""
 
     """
@@ -34,7 +31,8 @@ process RUN_INTERPROSCAN_CPU {
         --outprefix i6matches \\
         --applications ${job.application.name} \\
         --datadir ${job.dataDir} \\
-        ${profileArgs} ${maxWorkers} ${configPath}
+        --max-workers 8 \\
+        ${profileArgs} ${configPath}
     """
 }
 
@@ -46,9 +44,7 @@ process RUN_INTERPROSCAN_GPU {
     input:
     tuple val(meta), val(job), val(gpu)
 
-    cpus {
-        job.iprscan.resources.cpus
-    }
+    cpus { 2 }
     memory {
         "${(job.iprscan.resources.mem.value * task.attempt).round(1)} ${job.iprscan.resources.mem.unit ?: 'GB'}"
     }
@@ -61,7 +57,6 @@ process RUN_INTERPROSCAN_GPU {
 
     script:
     def profileArgs  = job.iprscan.profile ? "-profile ${job.iprscan.profile}" : ""
-    def maxWorkers   = job.iprscan.maxWorkers ? "--max-workers ${job.iprscan.maxWorkers}" : ""
     def configPath   = job.iprscan.configFile ? "-c ${job.iprscan.configFile}" : ""
 
     """
@@ -75,7 +70,8 @@ process RUN_INTERPROSCAN_GPU {
         --outprefix i6matches \\
         --applications ${job.application.name} \\
         --datadir ${job.dataDir} \\
-        ${profileArgs} ${maxWorkers} ${configPath} \\
+        --max-workers 1 \\
+        ${profileArgs} ${configPath} \\
         --use-gpu
     """
 }
