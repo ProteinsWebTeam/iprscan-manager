@@ -158,22 +158,42 @@ process CLEAN_FASTAS {
 
 
 process CLEAN_WORKDIRS {
-    // Delete InterProScan6 workdirs
     executor 'local'
 
     input:
-    val all_cpu_jobs  // each = tuple val(meta), val(job), val(gpu)
-    val all_gpu_jobs  // each = tuple val(meta), val(job), val(gpu)
+    val all_cpu_jobs
+    val all_gpu_jobs
 
     exec:
-    def workDir = task.workdir.parent.parent
+    def workDir = task.workDir.parent.parent
+
     Files.walkFileTree(workDir, new SimpleFileVisitor<Path>() {
+
         @Override
-        FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+        FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes outerAttrs) {
             if (dir.fileName.toString() == 'work') {
-                println "Deleting: $dir"
-                dir.toFile().deleteDir()   // recursive delete
-                return SKIP_SUBTREE        // do NOT walk inside it
+
+                // Delete contents without following symlinks
+                Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
+
+                    @Override
+                    FileVisitResult visitFile(Path file, BasicFileAttributes innerAttrs) {
+                        if (Files.isSymbolicLink(file)) {
+                            Files.delete(file)
+                        } else {
+                            Files.delete(file)
+                        }
+                        return CONTINUE
+                    }
+
+                    @Override
+                    FileVisitResult postVisitDirectory(Path d, IOException exc) {
+                        Files.delete(d)
+                        return CONTINUE
+                    }
+                })
+
+                return SKIP_SUBTREE
             }
             return CONTINUE
         }
