@@ -1,4 +1,6 @@
 import uk.ac.ebi.interpro.Database
+import java.nio.file.*
+import static java.nio.file.FileVisitResult.*
 
 process CLEAN_OBSOLETE_DATA {
     input:
@@ -131,11 +133,16 @@ process CLEAN_OBSOLETE_DATA {
 }
 
 process CLEAN_FASTAS {
+    // Delete the FASTA files used for the InterProScan6 jobs
     executor 'local'
 
     input:
     val all_cpu_jobs  // each = tuple val(meta), val(job), val(gpu)
     val all_gpu_jobs  // each = tuple val(meta), val(job), val(gpu)
+
+    output:
+    val all_cpu_jobs
+    val all_gpu_jobs
 
     exec:
     all_fastas = (all_cpu_jobs + all_gpu_jobs).collect { x, job, y -> job.fasta } as Set
@@ -146,4 +153,28 @@ process CLEAN_FASTAS {
             println "Failed to delete ${fastaPath}: ${e.message}"
         }
     }
+}
+
+
+process CLEAN_WORKDIRS {
+    // Delete InterProScan6 workdirs
+    exceutor 'local'
+
+    input:
+    val all_cpu_jobs  // each = tuple val(meta), val(job), val(gpu)
+    val all_gpu_jobs  // each = tuple val(meta), val(job), val(gpu)
+
+    exce:
+    def workDir = task.workdir.parent.parent
+    Files.walkFileTree(workDir, new SimpleFileVisitor<Path>() {
+        @Override
+        FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+            if (dir.fileName.toString() == 'work') {
+                println "Deleting: $dir"
+                dir.toFile().deleteDir()   // recursive delete
+                return SKIP_SUBTREE        // do NOT walk inside it
+            }
+            return CONTINUE
+        }
+    })
 }

@@ -26,6 +26,10 @@ class ProductionManager {
                     description: "[ANALYSE] Max number of sequences per InterProScan job"
             ],
             [
+                    name: "keep",
+                    description: "[ANALYSE] Do NOT delete the InterProScan6 work dirs. Default: Delete all InterProScan6 work dirs."
+            ],
+            [
                     name: "analyses",
                     description: "[CLEAN] IDs of analyses to clean (default: all) - only used by the 'clean' method."
             ],
