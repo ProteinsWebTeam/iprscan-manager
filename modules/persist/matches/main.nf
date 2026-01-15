@@ -58,7 +58,6 @@ process PERSIST_MATCHES {
     def formatter
     def matchPersister
     def sitePersister
-    def meta_val = meta
 
     switch (application) {
         case "antifam":
