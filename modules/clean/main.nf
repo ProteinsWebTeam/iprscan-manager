@@ -1,4 +1,7 @@
 import uk.ac.ebi.interpro.Database
+import java.nio.file.*
+import java.nio.file.attribute.BasicFileAttributes
+import static java.nio.file.FileVisitResult.*
 
 process CLEAN_OBSOLETE_DATA {
     input:
@@ -131,11 +134,16 @@ process CLEAN_OBSOLETE_DATA {
 }
 
 process CLEAN_FASTAS {
+    // Delete the FASTA files used for the InterProScan6 jobs
     executor 'local'
 
     input:
     val all_cpu_jobs  // each = tuple val(meta), val(job), val(gpu)
     val all_gpu_jobs  // each = tuple val(meta), val(job), val(gpu)
+
+    output:
+    val all_cpu_jobs
+    val all_gpu_jobs
 
     exec:
     all_fastas = (all_cpu_jobs + all_gpu_jobs).collect { x, job, y -> job.fasta } as Set
@@ -146,4 +154,40 @@ process CLEAN_FASTAS {
             println "Failed to delete ${fastaPath}: ${e.message}"
         }
     }
+}
+
+
+process CLEAN_WORKDIRS {
+    executor 'local'
+
+    input:
+    val all_cpu_jobs
+    val all_gpu_jobs
+
+    exec:
+    def workDir = task.workDir.parent.parent
+
+    Files.walkFileTree(workDir, new SimpleFileVisitor<Path>() {
+        @Override
+        FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes outerAttrs) {
+            if (dir.fileName.toString() == 'work') {
+                // Delete contents without following symlinks
+                // This stops the InterProScan6 data files from being deleted
+                Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
+                    @Override
+                    FileVisitResult visitFile(Path file, BasicFileAttributes innerAttrs) {
+                        Files.delete(file)
+                        return CONTINUE
+                    }
+                    @Override
+                    FileVisitResult postVisitDirectory(Path d, IOException exc) {
+                        Files.delete(d)
+                        return CONTINUE
+                    }
+                })
+                return SKIP_SUBTREE
+            }
+            return CONTINUE
+        }
+    })
 }

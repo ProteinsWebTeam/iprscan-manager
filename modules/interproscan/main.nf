@@ -34,7 +34,6 @@ process RUN_INTERPROSCAN_CPU {
         --outprefix i6matches \\
         --applications ${job.application.name} \\
         --datadir ${job.dataDir} \\
-        -work-dir ${job.iprscan.workDir} \\
         ${profileArgs} ${maxWorkers} ${configPath}
     """
 }
@@ -76,7 +75,6 @@ process RUN_INTERPROSCAN_GPU {
         --outprefix i6matches \\
         --applications ${job.application.name} \\
         --datadir ${job.dataDir} \\
-        -work-dir ${job.iprscan.workDir} \\
         ${profileArgs} ${maxWorkers} ${configPath} \\
         --use-gpu
     """

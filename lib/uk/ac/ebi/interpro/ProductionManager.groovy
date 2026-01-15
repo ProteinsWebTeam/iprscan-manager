@@ -26,6 +26,10 @@ class ProductionManager {
                     description: "[ANALYSE] Max number of sequences per InterProScan job"
             ],
             [
+                    name: "keep",
+                    description: "[ANALYSE] Do NOT delete the InterProScan6 work dirs. Default: Delete all InterProScan6 work dirs."
+            ],
+            [
                     name: "analyses",
                     description: "[CLEAN] IDs of analyses to clean (default: all) - only used by the 'clean' method."
             ],
@@ -147,25 +151,6 @@ class ProductionManager {
 
         }
         return [methodsToRun, error]
-    }
-
-    static resolveDirectory(String dirPath, boolean mustBeWritable = false) {
-        Path path = Paths.get(dirPath)
-        if (Files.exists(path)) {
-            if (!Files.isDirectory(path)) {
-                return [null, "Not a directory: ${dirPath}"]
-            } else if (mustBeWritable && !Files.isWritable(path)) {
-                return [null, "Directory not writable: ${dirPath}."]
-            }
-            return [path.toRealPath(), null]
-        } else {
-            try {
-                Files.createDirectories(path)
-                return [path.toRealPath(), null]
-            } catch (IOException) {
-                return [null, "Cannot create directory: ${dirPath}"]
-            }
-        }
     }
 
     static List resolveExecutable(String executable) {

@@ -3,7 +3,7 @@ include { GET_ANALYSES; BUILD_JOBS                   } from "../../modules/prepa
 include { RUN_INTERPROSCAN_CPU; RUN_INTERPROSCAN_GPU } from "../../modules/interproscan"
 include { PERSIST_MATCHES                            } from "../../modules/persist/matches"
 include { LOG_JOBS                                   } from "../../modules/persist/jobs"
-include { CLEAN_FASTAS                               } from "../../modules/clean"
+include { CLEAN_FASTAS; CLEAN_WORKDIRS               } from "../../modules/clean"
 
 workflow ANALYSE {
     take:
@@ -11,6 +11,7 @@ workflow ANALYSE {
     interproscan_params
     applications_params
     batch_size
+    keep_work_dirs
 
     main:
     INIT_PIPELINE(
@@ -90,4 +91,8 @@ workflow ANALYSE {
     )
 
     CLEAN_FASTAS(LOG_JOBS.out)
+
+    if (!keep_work_dirs) {
+        CLEAN_WORKDIRS(CLEAN_FASTAS.out)
+    }
 }
