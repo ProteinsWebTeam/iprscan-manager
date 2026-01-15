@@ -26,6 +26,25 @@ process PERSIST_MATCHES {
     tuple val(meta), val(job), val(gpu), val(slurm_id_path)
 
     exec:
+    def fasta = new File(job.fasta.toString())
+    def seqLengths = [:]
+    def currentId = null
+    def currentLength = 0
+    fasta.eachLine { line ->
+        if (line.startsWith(">")) {
+            if (currentId) {
+                seqLengths[currentLength] = currentLength
+            }
+            currentId = line.trim().substring(1).split(/\s+/)[0]
+            currentLength =0
+        } else {
+            currentLength += line.trim().length()
+        }
+    }
+    if (currentId) {
+        seqLengths[currentId] = currentLength
+    }
+
     Database db = new Database(
         iprscan_conf.uri,
         iprscan_conf.user,
@@ -135,12 +154,12 @@ process PERSIST_MATCHES {
             throw new UnsupportedOperationException("Unknown database '${application}'")
     }
 
-    matchValues = []
-    siteValues  = []
+    def matchValues = []
+    def siteValues  = []
     // don't put inside a try/catch, we want the error to cause the process to end and mark the job as failed
     streamJson(matches_path.toString(), mapper) { results -> // streaming only the "results" Json Array
         def upi = results.get("xref")[0].get("id").asText()
-        def seqLength = results.get("seqLength")
+        def seqLength = seqLengths.get(upi)
         results.get("matches").each { match ->
             def graphscan = match.get("graphscan")?.asText(null)  // returns null if key is missing
             def ancestralNodeID = match.get("ancestralNodeID")?.asText(null)  // returns null if key is missing
@@ -292,7 +311,7 @@ def fmtCddMatches(Map matchMetaData, JsonNode location) {
         matchMetaData.seqScore,
         matchMetaData.seqEvalue
     ]
-    siteValues = []
+    def siteValues = []
     location.sites.each { site ->
         site.siteLocations.each { siteLoc ->
             siteValues << [
@@ -398,7 +417,7 @@ def fmtPantherMatches(Map matchMetaData, JsonNode location) {
 }
 
 def fmtPirsrMatches(Map matchMetaData, JsonNode location) {
-    matchValue = [
+    def matchValue = [
         matchMetaData.analysisId,
         matchMetaData.application,
         matchMetaData.majorVersion,
@@ -420,7 +439,7 @@ def fmtPirsrMatches(Map matchMetaData, JsonNode location) {
         getBigDecimal(location, "score"),
         getBigDecimal(location, "evalue")
     ]
-    siteValues = []
+    def siteValues = []
     location.sites.each { site ->
         site.siteLocations.each { siteLoc ->
             siteValues << [
@@ -525,7 +544,7 @@ def fmtSfldMatches(Map matchMetaData, JsonNode location) {
         getBigDecimal(location, "score"),
         getBigDecimal(location, "evalue")
     ]
-    siteValues = []
+    def siteValues = []
     location.sites.each { site ->
         site.siteLocations.each { siteLoc ->
             siteValues << [
