@@ -529,6 +529,19 @@ class Database {
         }
     }
 
+    void updateAnalyses(List<List> values) {
+        String updateQuery = """UPDATE iprscan.analysis
+            SET max_upi = ?
+            WHERE id = ?
+        """
+
+        this.sql.withBatch(INSERT_SIZE, updateQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
     void updateJobs(List<List> values) {
         String updateQuery = """UPDATE iprscan.analysis_jobs
             SET start_time = ?,
