@@ -2,7 +2,8 @@
 
 import uk.ac.ebi.interpro.Database
 
-process LOG_JOBS {
+process UPDATE_JOBS {
+    // Update the job logs in the iprscan database
     executor 'local'
 
     input:
@@ -24,13 +25,12 @@ process LOG_JOBS {
         iprscan_db_conf.engine
     )
 
-    def allJobsMap = [cpu: [:], gpu: [:]]
+    def allJobsMap = [:]
     def addToJobMap = { jobList, defaultSuccess, defaultSlurmFile = null ->
         jobList.each { job ->
             def (jobId, jobObj, jobHardware, jobSlurmFile) = job
-            def hardware = jobHardware ? 'gpu' : 'cpu'
-            if (!allJobsMap[hardware].containsKey(jobId)) {
-                allJobsMap[hardware][jobId] = [
+            if (!allJobsMap.containsKey(jobId)) {
+                allJobsMap[jobId] = [
                     job        : jobObj,
                     slurmIdFile: jobSlurmFile ?: defaultSlurmFile,
                     success    : defaultSuccess
@@ -38,7 +38,6 @@ process LOG_JOBS {
             }
         }
     }
-
     // Add successful persisted jobs
     addToJobMap(successful_persist_matches_jobs, true)
 
@@ -51,28 +50,31 @@ process LOG_JOBS {
     // Add all GPU jobs not already in map
     addToJobMap(all_gpu_jobs.collect { it + [null] }, false)
 
-    allJobsMap.cpu.each { jobId, jobMap ->
+    recordsToUpdate = []
+    allJobsMap.each { jobId, jobMap ->
         // Get cluster job info. If not a cluster job all values will be null
         (startTime, endTime, maxMemory, limMemory, cpuTime) = getSlurmJobData(
             jobMap.slurmIdFile.toString(),
             jobMap.job.analysisId
         )
-        value = [
-            jobMap.job.analysisId,
-            jobMap.job.upiFrom,
-            jobMap.job.upiTo,
-            java.sql.Timestamp.valueOf(jobMap.job.createdTime),
-            startTime,
-            endTime,
-            maxMemory,
-            limMemory,
-            cpuTime,
-            jobMap.success,
-            jobMap.job.seqCount
-        ]
-        db.persistJob(value)
+        recordsToUpdate.add(
+            [
+                startTime,
+                endTime,
+                maxMemory,
+                limMemory,
+                cpuTime,
+                jobMap.success,
+                jobMap.job.analysisId,
+                jobMap.job.upiFrom,
+                jobMap.job.upiTo,
+                java.sql.Timestamp.valueOf(jobMap.job.createdTime),
+                jobMap.job.seqCount
+            ]
+        )
     }
-    
+
+    db.updateJobs(recordsToUpdate)
     db.close()
 }
 
@@ -110,7 +112,7 @@ def getSlurmJobData(String slurm_id_file, int analysis_id) {
         try {
             startTime  = java.sql.Timestamp.valueOf(batchFields[4].replace("T", " "))
             endTime    = java.sql.Timestamp.valueOf(batchFields[5].replace("T", " "))
-        } catch (Exception exc) { // arises when the job was running locally
+        } catch (Exception exc) { // arises when the job was running locally inside an interactive slurm job
             startTime  = java.sql.Timestamp.valueOf(batchFields[4].replace("T", " "))
             endTime    = null
         }

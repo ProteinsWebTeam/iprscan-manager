@@ -2,7 +2,7 @@ include { INIT_PIPELINE                              } from "./init"
 include { GET_ANALYSES; BUILD_JOBS                   } from "../../modules/prepare"
 include { RUN_INTERPROSCAN_CPU; RUN_INTERPROSCAN_GPU } from "../../modules/interproscan"
 include { PERSIST_MATCHES                            } from "../../modules/persist/matches"
-include { LOG_JOBS                                   } from "../../modules/persist/jobs"
+include { UPDATE_JOBS                                } from "../../modules/persist/jobs"
 include { CLEAN_FASTAS; CLEAN_WORKDIRS               } from "../../modules/clean"
 
 workflow ANALYSE {
@@ -65,7 +65,6 @@ workflow ANALYSE {
         .collect()
         .ifEmpty { [] }    // Emit an empty list if no jobs succeeded
 
-
     // Wrap each emit tuple in its own list
     successful_iprscan_jobs = ch_iprscan_results
         .map { t -> [t] }
@@ -76,13 +75,14 @@ workflow ANALYSE {
         .map { t -> [t] }
         .collect()
         .ifEmpty { [] }  // Emit an empty list if no jobs succeeded
+
     all_gpu_jobs = ch_gpu_jobs
         .map { t -> [t] }
         .collect()
         .ifEmpty { [] }  // Emit an empty list if no jobs succeeded
 
     // Log the job success/failures in the postgresql interproscan db
-    LOG_JOBS(
+    UPDATE_JOBS(
         successful_jobs,
         successful_iprscan_jobs,
         all_cpu_jobs,
@@ -90,7 +90,7 @@ workflow ANALYSE {
         db_config["intprscan"]
     )
 
-    CLEAN_FASTAS(LOG_JOBS.out)
+    CLEAN_FASTAS(UPDATE_JOBS.out)
 
     if (!keep_work_dirs) {
         CLEAN_WORKDIRS(CLEAN_FASTAS.out)
