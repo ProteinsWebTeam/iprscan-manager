@@ -123,6 +123,21 @@ class Database {
         return this.sql.rows(query)
     }
 
+    List<String> getFailedJobs() {
+        def query = """
+            SELECT J.analysis_id, J.upi_from, J.upi_to, J.sequences,
+                A.i6_dir, A.interpro_version, A.name,
+                T.match_table, T.site_table, A.version, A.gpu
+            FROM iprscan.analysis_jobs J
+            INNER JOIN iprscan.analysis A ON J.analysis_id = A.id
+            INNER JOIN iprscan.analysis_tables T
+                ON LOWER(A.name) = LOWER(T.name)
+            WHERE success IS NULL
+            OR success = FALSE;
+        """
+        return this.sql.rows(query)
+    }
+
     Map<String, Map> getPartitions(table_name) {
         // The parition bound is "DEFAULT" or "FOR VALUES IN ($analysis_id)"
         String query ="""

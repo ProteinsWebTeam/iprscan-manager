@@ -23,14 +23,53 @@ process GET_ANALYSES {
     )
 
     // Group jobs by UPI so that we only need to write one FASTA for each unique max UPI
-    analyses = [:].withDefault { [] }  // UPI: [Jobs]
+    analyses = [:].withDefault { key ->
+    def (from, to) = key.split('-')
+        [
+            upiFrom: from,
+            upiTo:   to,
+            jobs:    []
+        ]
+    } // upiFrom-upiTo: [upiFrom: str, upiTo: str, jobs: list<jobs>]
+
+    // Get the new analyses from the iprscan.analysis table
     def analysis_rows = db.getAnalyses()
+    upiTo = null
     for (row: analysis_rows) {
-        (maxUpi, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion, gpu) = row
+        (upiFrom, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion, gpu) = row
         application = new Application(dbName, dbVersion, matchTable, siteTable)
-        job = new Job(analysisId.toInteger(), maxUpi, dataDir, interproVersion, gpu, application)
-        analyses[maxUpi] << job
+        job = new Job(
+            analysisId.toInteger(),
+            upiFrom,
+            dataDir,
+            interproVersion,
+            gpu,
+            application
+        )
+        analyses["${upiFrom}-${upiTo}"].jobs << job
     }
+
+    // Get analyses/jobs that failed to run previously so that they can be re-run
+    def job_rows = db.getFailedJobs()
+    for (row: job_rows) {
+        (analysisId, upiFrom, upiTo, seqCount, dataDir, interproVersion, dbName, matchTable, siteTable, dbVersin, gpu) = row
+        application = new Application(dbName, dbVersion, matchTable, siteTable)
+        job = new Job(
+            analysisId.toInteger(),
+            upiFrom,
+            dataDir,
+            interproVersion,
+            gpu,
+            application,
+            null,
+            null,
+            seqCount,
+            upiFrom,
+            upiTo
+        )
+        analyses["${upiFrom}-${upiTo}"].jobs << job
+    }
+
     db.close()
 }
 
