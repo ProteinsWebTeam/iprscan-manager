@@ -119,7 +119,7 @@ process BUILD_JOBS {
     def fastaFiles = [:].withDefault { [] } // List<FastaFile>
     analyses.each { key, analysisMap ->
         upiFrom = analysisMap['upiFrom']
-        upiTo = analysisMap['upiTo'] ?: maxUpiTo
+        upiTo = analysisMap['upiTo'] == "null" ? maxUpiTo : analysisMap['upiTo'] // the job obj convert null to a str
         fastaFiles[key].addAll( db.buildBatches(upiFrom, upiTo, task.workDir, batch_size) )
     }
 
