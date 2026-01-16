@@ -82,11 +82,11 @@ process BUILD_JOBS {
     maxUPIs.each { String upiFrom ->
         fastaFiles[upiFrom].addAll( db.buildBatches(upiFrom, upiTo, task.workDir, batch_size) )
     }
-    db.close()
 
     // Create a job for each batch per analysis, and assign the batches fasta file to the job
     cpuJobs = []
     gpuJobs = []
+    jobRecords = []
     fastaFiles.each { String upiFrom, List<FastaFile> fastaFilesList ->
         analyses[upiFrom].each { Job job ->
             fastaFilesList.each { FastaFile fasta ->
@@ -114,7 +114,20 @@ process BUILD_JOBS {
                 )
 
                 (job.gpu ? gpuJobs : cpuJobs) << batchJob
+
+                jobRecords.add(
+                    [
+                        batchJob.analysisId,
+                        batchJob.upiFrom,
+                        batchJob.upiTo,
+                        java.sql.Timestamp.valueOf(batchJob.createdTime),
+                        batchJob.seqCount
+                    ]
+                )
             }
         }
     }
+
+    db.insertJobs(jobRecords)
+    db.close()
 }

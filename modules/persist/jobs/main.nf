@@ -2,53 +2,6 @@
 
 import uk.ac.ebi.interpro.Database
 
-process LOG_JOBS {
-    // Insert jobs into the iprscan db
-    executor 'local'
-
-    input:
-
-    val all_cpu_jobs                    // each = tuple val(meta), val(job), val(gpu)
-    val all_gpu_jobs                    // each = tuple val(meta), val(job), val(gpu)
-    val iprscan_db_conf
-
-    output:
-    val all_cpu_jobs
-    val all_gpu_jobs
-
-    exec:
-    Database db = new Database(
-        iprscan_db_conf.uri,
-        iprscan_db_conf.user,
-        iprscan_db_conf.password,
-        iprscan_db_conf.engine
-    )
-
-    def allJobs = []
-    [all_cpu_jobs, all_gpu_jobs].each { jobList ->
-        jobList.each { job ->
-            allJobs.add(
-                [
-                    job.analysisId,
-                    job.upiFrom,
-                    job.upiTo,
-                    java.sql.Timestamp.valueOf(job.createdTime),
-                    null, // startTime
-                    null, // endTime
-                    null, // maxMemory
-                    null, // limMemory
-                    null, // cpuTime
-                    null, // job success
-                    job.seqCount
-                ]
-            )
-        }
-    }
-
-    db.insertJobs(allJobs)
-    db.close()
-}
-
 process UPDATE_JOBS {
     // Update the job logs in the iprscan database
     executor 'local'
@@ -72,7 +25,7 @@ process UPDATE_JOBS {
         iprscan_db_conf.engine
     )
 
-    def allJobsMap = [cpu: [:], gpu: [:]]
+    def allJobsMap = [:]
     def addToJobMap = { jobList, defaultSuccess, defaultSlurmFile = null ->
         jobList.each { job ->
             def (jobId, jobObj, jobHardware, jobSlurmFile) = job
@@ -86,6 +39,7 @@ process UPDATE_JOBS {
             }
         }
     }
+    println "allJobsMap: ${allJobsMap}"
 
     // Add successful persisted jobs
     addToJobMap(successful_persist_matches_jobs, true)
@@ -100,6 +54,8 @@ process UPDATE_JOBS {
     addToJobMap(all_gpu_jobs.collect { it + [null] }, false)
 
     allJobsMap.each { jobId, jobMap ->
+        println "jobId: ${jobId}"
+        println "jobMap: ${jobMap}"
         // Get cluster job info. If not a cluster job all values will be null
         (startTime, endTime, maxMemory, limMemory, cpuTime) = getSlurmJobData(
             jobMap.slurmIdFile.toString(),

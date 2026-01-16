@@ -517,11 +517,10 @@ class Database {
 
     void insertJobs(List<List> values) {
         String insertQuery = """INSERT INTO iprscan.analysis_jobs (
-            analysis_id, upi_from, upi_to, created_time,
-            start_time, end_time, max_memory, lim_memory,
-            cpu_time, success, sequences
+            analysis_id, upi_from, upi_to,
+            created_time, sequences
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?)
         """
         this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
             values.each { row ->
