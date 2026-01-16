@@ -2,7 +2,7 @@ include { INIT_PIPELINE                              } from "./init"
 include { GET_ANALYSES; BUILD_JOBS                   } from "../../modules/prepare"
 include { RUN_INTERPROSCAN_CPU; RUN_INTERPROSCAN_GPU } from "../../modules/interproscan"
 include { PERSIST_MATCHES                            } from "../../modules/persist/matches"
-include { LOG_JOBS                                   } from "../../modules/persist/jobs"
+include { LOG_JOBS; UPDATE_JOBS                      } from "../../modules/persist/jobs"
 include { CLEAN_FASTAS; CLEAN_WORKDIRS               } from "../../modules/clean"
 
 workflow ANALYSE {
@@ -48,14 +48,19 @@ workflow ANALYSE {
         .flatMap()
         .map { entry -> [entry.key, entry.value, true] }
 
+    // Log the jobs to be run in the database
+    logged_cpu_jobs, logged_gpu_jobs = LOG_JOBS(
+        ch_cpu_jobs,
+        ch_gpu_jobs
+    )
+
     /*
     If RUN_INTERPROSCAN is succesful, persist the matches and update the ANALYSIS_JOBS table.
     If PERSIST_MATCHES fails, mark the job as unsuccessful in the ANALYSIS_JOBS table.
     If RUN_INTERPROSCAN fails skip straight to updating the ANALYSIS_JOBS table.
     */
-    iprscan_cpu_out = RUN_INTERPROSCAN_CPU(ch_cpu_jobs)
-
-    iprscan_gpu_out = RUN_INTERPROSCAN_GPU(ch_gpu_jobs)
+    iprscan_cpu_out = RUN_INTERPROSCAN_CPU(logged_cpu_jobs)
+    iprscan_gpu_out = RUN_INTERPROSCAN_GPU(logged_gpu_jobs)
 
     ch_iprscan_results = iprscan_cpu_out
         .mix(iprscan_gpu_out)
@@ -64,7 +69,6 @@ workflow ANALYSE {
         .map { t -> [t] }  // Wrap each emitted tuple in its own list
         .collect()
         .ifEmpty { [] }    // Emit an empty list if no jobs succeeded
-
 
     // Wrap each emit tuple in its own list
     successful_iprscan_jobs = ch_iprscan_results
@@ -76,13 +80,15 @@ workflow ANALYSE {
         .map { t -> [t] }
         .collect()
         .ifEmpty { [] }  // Emit an empty list if no jobs succeeded
+
     all_gpu_jobs = ch_gpu_jobs
         .map { t -> [t] }
         .collect()
         .ifEmpty { [] }  // Emit an empty list if no jobs succeeded
 
     // Log the job success/failures in the postgresql interproscan db
-    LOG_JOBS(
+    // TODO modify this function to update the existing records in the database
+    UPDATE_JOBS(
         successful_jobs,
         successful_iprscan_jobs,
         all_cpu_jobs,
