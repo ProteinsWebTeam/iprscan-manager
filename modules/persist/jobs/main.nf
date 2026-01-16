@@ -106,21 +106,17 @@ process UPDATE_JOBS {
             jobMap.job.analysisId
         )
         value = [
-                "data": [
-                    startTime,
-                    endTime,
-                    maxMemory,
-                    limMemory,
-                    cpuTime,
-                    jobMap.success
-                ]
-                "where": [
-                    jobMap.job.analysisId,
-                    jobMap.job.upiFrom,
-                    jobMap.job.upiTo,
-                    java.sql.Timestamp.valueOf(jobMap.job.createdTime),
-                    jobMap.job.seqCount
-                ]
+            startTime,
+            endTime,
+            maxMemory,
+            limMemory,
+            cpuTime,
+            jobMap.success,
+            jobMap.job.analysisId,
+            jobMap.job.upiFrom,
+            jobMap.job.upiTo,
+            java.sql.Timestamp.valueOf(jobMap.job.createdTime),
+            jobMap.job.seqCount
         ]
         db.updateJob(value)
     }
@@ -162,7 +158,7 @@ def getSlurmJobData(String slurm_id_file, int analysis_id) {
         try {
             startTime  = java.sql.Timestamp.valueOf(batchFields[4].replace("T", " "))
             endTime    = java.sql.Timestamp.valueOf(batchFields[5].replace("T", " "))
-        } catch (Exception exc) { // arises when the job was running locally
+        } catch (Exception exc) { // arises when the job was running locally inside an interactive slurm job
             startTime  = java.sql.Timestamp.valueOf(batchFields[4].replace("T", " "))
             endTime    = null
         }

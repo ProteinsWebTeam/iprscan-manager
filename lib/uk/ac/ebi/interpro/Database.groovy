@@ -515,7 +515,7 @@ class Database {
         }
     }
 
-    void persistJob(List value) {
+    void insertJobs(List<List> values) {
         String insertQuery = """INSERT INTO iprscan.analysis_jobs (
             analysis_id, upi_from, upi_to, created_time,
             start_time, end_time, max_memory, lim_memory,
@@ -523,7 +523,27 @@ class Database {
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
 
-        this.sql.executeInsert(insertQuery, value)
+    void updateJobs(List value) {
+        String updateQuery = """UPDATE iprscan.analysis_jobs
+        SET start_time = ?,
+            end_time = ?,
+            max_memory = ?,
+            lim_memory = ?,
+            cpu_time = ?,
+            success = ?
+        WHERE analysis_id = ?
+            AND upi_from = ?
+            AND upi_to = ?
+            AND created_time = ?
+            AND sequences = ?
+        """
+        this.sql.executeUpdate(updateQuery, value)
     }
 }
