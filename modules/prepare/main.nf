@@ -87,6 +87,7 @@ process BUILD_JOBS {
     cpuJobs = []
     gpuJobs = []
     jobRecords = []
+    analysisRecords = []
     fastaFiles.each { String upiFrom, List<FastaFile> fastaFilesList ->
         analyses[upiFrom].each { Job job ->
             fastaFilesList.each { FastaFile fasta ->
@@ -124,10 +125,18 @@ process BUILD_JOBS {
                         batchJob.seqCount
                     ]
                 )
+
+                analysisRecords.add(
+                    [
+                        upiTo,
+                        batchJob.analysisId
+                    ]
+                )
             }
         }
     }
 
     db.insertJobs(jobRecords)
+    db.updateAnalyses(analysisRecords)
     db.close()
 }
