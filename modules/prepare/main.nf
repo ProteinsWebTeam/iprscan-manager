@@ -115,11 +115,12 @@ process BUILD_JOBS {
     )
 
     // for each UPI range (from - to) build FASTA files of the protein sequences of a maxium batch_size
-    def upiTo = db.getMaxUPI()
-    def maxUPIs = analyses.keySet()
+    def maxUpiTo = db.getMaxUPI()
     def fastaFiles = [:].withDefault { [] } // List<FastaFile>
-    maxUPIs.each { String upiFrom ->
-        fastaFiles[upiFrom].addAll( db.buildBatches(upiFrom, upiTo, task.workDir, batch_size) )
+    analyses.each { key, analysisMap ->
+        upiFrom = analysisMap['upiFrom']
+        upiTo = analysisMap['upiTo'] ?: maxUpiTo
+        fastaFiles[key].addAll( db.buildBatches(upiFrom, upiTo, task.workDir, batch_size) )
     }
 
     // Create a job for each batch per analysis, and assign the batches fasta file to the job
@@ -127,8 +128,8 @@ process BUILD_JOBS {
     gpuJobs = []
     jobRecords = []
     analysisRecords = []
-    fastaFiles.each { String upiFrom, List<FastaFile> fastaFilesList ->
-        analyses[upiFrom].each { Job job ->
+    fastaFiles.each { String key, List<FastaFile> fastaFilesList ->
+        analyses[key]['jobs'].each { Job job ->
             fastaFilesList.each { FastaFile fasta ->
                 def iprscanSource = job.gpu ? gpu_iprscan : cpu_iprscan
                 Iprscan iprscanConfig = new Iprscan(
