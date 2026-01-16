@@ -529,20 +529,26 @@ class Database {
         }
     }
 
-    void updateJobs(List value) {
+    void updateJobs(List<List> values) {
         String updateQuery = """UPDATE iprscan.analysis_jobs
-        SET start_time = ?,
-            end_time = ?,
-            max_memory = ?,
-            lim_memory = ?,
-            cpu_time = ?,
-            success = ?
-        WHERE analysis_id = ?
+            SET start_time = ?,
+                end_time = ?,
+                max_memory = ?,
+                lim_memory = ?,
+                cpu_time = ?,
+                success = ?
+            WHERE analysis_id = ?
             AND upi_from = ?
             AND upi_to = ?
             AND created_time = ?
             AND sequences = ?
         """
-        this.sql.executeUpdate(updateQuery, value)
+
+        this.sql.withBatch(INSERT_SIZE, updateQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
     }
+
 }

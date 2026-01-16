@@ -29,7 +29,6 @@ process UPDATE_JOBS {
     def addToJobMap = { jobList, defaultSuccess, defaultSlurmFile = null ->
         jobList.each { job ->
             def (jobId, jobObj, jobHardware, jobSlurmFile) = job
-            def hardware = jobHardware ? 'gpu' : 'cpu'
             if (!allJobsMap.containsKey(jobId)) {
                 allJobsMap[jobId] = [
                     job        : jobObj,
@@ -39,8 +38,6 @@ process UPDATE_JOBS {
             }
         }
     }
-    println "allJobsMap: ${allJobsMap}"
-
     // Add successful persisted jobs
     addToJobMap(successful_persist_matches_jobs, true)
 
@@ -53,30 +50,31 @@ process UPDATE_JOBS {
     // Add all GPU jobs not already in map
     addToJobMap(all_gpu_jobs.collect { it + [null] }, false)
 
+    recordsToUpdate = []
     allJobsMap.each { jobId, jobMap ->
-        println "jobId: ${jobId}"
-        println "jobMap: ${jobMap}"
         // Get cluster job info. If not a cluster job all values will be null
         (startTime, endTime, maxMemory, limMemory, cpuTime) = getSlurmJobData(
             jobMap.slurmIdFile.toString(),
             jobMap.job.analysisId
         )
-        value = [
-            startTime,
-            endTime,
-            maxMemory,
-            limMemory,
-            cpuTime,
-            jobMap.success,
-            jobMap.job.analysisId,
-            jobMap.job.upiFrom,
-            jobMap.job.upiTo,
-            java.sql.Timestamp.valueOf(jobMap.job.createdTime),
-            jobMap.job.seqCount
-        ]
-        db.updateJob(value)
+        recordsToUpdate.add(
+            [
+                startTime,
+                endTime,
+                maxMemory,
+                limMemory,
+                cpuTime,
+                jobMap.success,
+                jobMap.job.analysisId,
+                jobMap.job.upiFrom,
+                jobMap.job.upiTo,
+                java.sql.Timestamp.valueOf(jobMap.job.createdTime),
+                jobMap.job.seqCount
+            ]
+        )
     }
 
+    db.updateJobs(recordsToUpdate)
     db.close()
 }
 
