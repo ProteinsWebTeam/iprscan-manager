@@ -159,12 +159,14 @@ process BUILD_JOBS {
                 )
 
                 upiTo_updated_hash = int_to_upi(upi_to_int(batchJob.upiTo) + 1)
-                analysisRecords.add(
-                    [
-                        upiTo_updated_hash,
-                        batchJob.analysisId
-                    ]
-                )
+                if (!job.resubmision) {
+                    analysisRecords.add(
+                        [
+                            upiTo_updated_hash,
+                            batchJob.analysisId
+                        ]
+                    )
+                }
             }
         }
     }
