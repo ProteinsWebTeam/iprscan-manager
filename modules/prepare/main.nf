@@ -23,7 +23,7 @@ process GET_ANALYSES {
     )
 
     // Group jobs by UPI so that we only need to write one FASTA for each unique max UPI
-    analyses = [:].withDefault { [] } // upiFrom-upiTo: [jobs]
+    analyses = [:].withDefault { [] } // [upiFrom-upiTo: [jobs]]
 
     // Get the new analyses from the iprscan.analysis table
     def analysis_rows = db.getAnalyses()
@@ -52,7 +52,7 @@ process GET_ANALYSES {
         application = new Application(dbName, dbVersion, matchTable, siteTable)
         job = new Job(
             analysisId.toInteger(),
-            resubmision,
+            resubmission,
             upiFrom,
             dataDir,
             interproVersion,
@@ -112,9 +112,9 @@ process BUILD_JOBS {
     // for each UPI range (from - to) identify the upi ranges for the batches
     def maxUpiTo = db.getMaxUPI()
     def batches = [:].withDefault { [] } // [[upiFrom: str, upiTo: str, seqCount: int]]
-    analyses.each { key, analysis ->
-        upiTo = analysis.upiTo ?: maxUpiTo
-        batches[key].addAll( db.defineBatches(analysis.upiFrom, upiTo, task.workDir, batch_size) )
+    analyses.each { key, analysisList ->
+        upiTo = analysisList[0].upiTo ?: maxUpiTo
+        batches[key].addAll( db.defineBatches(analysisList[0].maxUpi, upiTo, task.workDir, batch_size) )
     }
 
     // Create a job for each batch per analysis
@@ -164,7 +164,7 @@ process BUILD_JOBS {
                     // This is a new analysis for analysisID, so set the max up, and then we don't care about any of the max-upis after that
                     groupedAnalyses[job.analysisId].resubmissionsOnly = false
                     groupedAnalyses[job.analysisId].maxUpi = upi_to_int(maxUpiTo)
-                } elif (groupedAnalyses[job.analysisId].resubmissionsOnly && job.resubmision) {
+                } else if (groupedAnalyses[job.analysisId].resubmissionsOnly && job.resubmission) {
                     // We have only come across resubmitted jobs for this analysis ID, pick the max upi out these jobs
                     newMaxUpi = upi_to_int(batchJob.upiTo) + 1
                     groupedAnalyses[job.analysisIds].maxUpi = Math.max(groupedAnalyses[job.analysisIds].maxUpi, newMaxUpi)
@@ -177,7 +177,7 @@ process BUILD_JOBS {
 
     // identify analysis records whose maxUpi needs updating
     analysisRecords = []
-    groupedAnalyses.each { Int analysisId, Map analysisMap ->
+    groupedAnalyses.each { Integer analysisId, Map analysisMap ->
         if (analysisMap.resubmissionsOnly) {
             // compare the maxUpi to the existing upi in iprscan.analysis, and update if needed
             currentMaxUpi = upi_to_int(db.getAnalysisMaxUpi(analysisId))

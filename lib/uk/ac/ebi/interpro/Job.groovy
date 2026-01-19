@@ -32,7 +32,7 @@ class Job implements Serializable {
         Application application
     ) {
         this.analysisId = analysis_id
-        this.resubmision = resubmision
+        this.resubmission = resubmission
         this.maxUpi = max_upi
         this.dataDir = data_dir
         this.interproVersion = interpro_version
@@ -49,14 +49,12 @@ class Job implements Serializable {
         String interpro_version,
         Boolean gpu,
         Application application,
-        Iprscan iprscan,
-        String fasta,
         Integer seqCount,
         String upiFrom,
         String upiTo
     ) {
         this.analysisId = analysis_id
-        this.resubmision = resubmision
+        this.resubmission = resubmission
         this.maxUpi = max_upi
         this.dataDir = data_dir
         this.interproVersion = interpro_version
@@ -86,7 +84,7 @@ class Job implements Serializable {
         def createdTime = now.format(formatter)
 
         this.analysisId = analysis_id
-        this.resubmision = resubmision
+        this.resubmission = resubmission
         this.maxUpi = max_upi
         this.dataDir = data_dir
         this.interproVersion = interpro_version

@@ -205,13 +205,13 @@ class Database {
                 if (count % batch_size == 0) {
                     // start a new batch
                     batchStart = upi
-                    fasta = null
+                    count = 0
                 } 
                 batchEnd = upi
                 count++
 
                 if (count % batch_size == 0) {
-                    batches << [upiFrom: batchStart, upiTo: batchEnd, seqCount = count]
+                    batches << [upiFrom: batchStart, upiTo: batchEnd, seqCount: count]
                 }
             }
 
@@ -223,7 +223,7 @@ class Database {
 
         // Don't forget the last batch
         if (count % batch_size && batchStart != null) {
-            batches << [upiFrom: batchStart, upiTo: batchEnd, seqCount = count]
+            batches << [upiFrom: batchStart, upiTo: batchEnd, seqCount: count]
         }
 
         return batches
@@ -544,7 +544,7 @@ class Database {
         return this.sql.rows(query, [analysis_id])[0][0]
     }
 
-    void updateAnalyses(Map<String, String> values) {
+    void updateAnalyses(List<List> values) {
         String updateQuery = """UPDATE iprscan.analysis
             SET max_upi = ?
             WHERE id = ?
