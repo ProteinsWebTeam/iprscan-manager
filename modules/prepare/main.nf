@@ -121,7 +121,7 @@ process BUILD_JOBS {
     cpuJobs = []
     gpuJobs = []
     jobRecords = []
-    analysisRecords = []
+    groupedAnalyses = [:].withDefault { [resubmissionsOnly: true, maxUpi: 0] } // analysis_id: bool if only resubmissions
     batches.each { String key, List<Map> batchMaps ->
         analyses[key].each { Job job ->
             batchMaps.each { Map batch ->
@@ -160,22 +160,35 @@ process BUILD_JOBS {
                     ]
                 )
 
-                // update the maxupi for analyses in the interproscan.iprscan.analyis table
-                // so that future jobs automatically pick up from where this analysis ended
-                upiTo_updated_hash = int_to_upi(upi_to_int(batchJob.upiTo) + 1)
-                if (!job.resubmision) {
-                    analysisRecords.add(
-                        [
-                            upiTo_updated_hash,
-                            batchJob.analysisId
-                        ]
-                    )
+                if (groupedAnalyses[job.analysisId].resubmissionsOnly && !job.resubmission) {
+                    // This is a new analysis for analysisID, so set the max up, and then we don't care about any of the max-upis after that
+                    groupedAnalyses[job.analysisId].resubmissionsOnly = false
+                    groupedAnalyses[job.analysisId].maxUpi = upi_to_int(maxUpiTo)
+                } elif (groupedAnalyses[job.analysisId].resubmissionsOnly && job.resubmision) {
+                    // We have only come across resubmitted jobs for this analysis ID, pick the max upi out these jobs
+                    newMaxUpi = upi_to_int(batchJob.upiTo) + 1
+                    groupedAnalyses[job.analysisIds].maxUpi = Math.max(groupedAnalyses[job.analysisIds].maxUpi, newMaxUpi)
                 }
             }
         }
     }
 
     db.insertJobs(jobRecords)
+
+    // identify analysis records whose maxUpi needs updating
+    analysisRecords = []
+    groupedAnalyses.each { Int analysisId, Map analysisMap ->
+        if (analysisMap.resubmissionsOnly) {
+            // compare the maxUpi to the existing upi in iprscan.analysis, and update if needed
+            currentMaxUpi = upi_to_int(db.getAnalysisMaxUpi(analysisId))
+            if (currentMaxUpi < analysisMap.maxUpi) {
+                analysisRecords.add( [int_to_upi(analysisMap.maxUpi), analysisId] )
+            }
+        } else {
+            // new analysis detected, so update to maxUpiTo
+            analysisRecords.add( [int_to_upi(analysisMap.maxUpi), analysisId] )
+        }
+    }
     db.updateAnalyses(analysisRecords)
     db.close()
 }

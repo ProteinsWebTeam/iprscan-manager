@@ -535,7 +535,16 @@ class Database {
         }
     }
 
-    void updateAnalyses(List<List> values) {
+    Integer getAnalysisMaxUpi(Integer analysis_id) {
+        String query = """
+            SELECT max_upi
+            FROM iprscan.analysis
+            WHERE id = ?
+        """
+        return this.sql.rows(query, [analysis_id])[0][0]
+    }
+
+    void updateAnalyses(Map<String, String> values) {
         String updateQuery = """UPDATE iprscan.analysis
             SET max_upi = ?
             WHERE id = ?
