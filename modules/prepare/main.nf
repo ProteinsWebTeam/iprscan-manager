@@ -123,7 +123,7 @@ process BUILD_JOBS {
     jobRecords = []
     analysisRecords = []
     fastaFiles.each { String key, List<FastaFile> fastaFilesList ->
-        analyses[key]['jobs'].each { Job job ->
+        analyses[key].each { Job job ->
             fastaFilesList.each { FastaFile fasta ->
                 def iprscanSource = job.gpu ? gpu_iprscan : cpu_iprscan
                 Iprscan iprscanConfig = new Iprscan(
