@@ -23,51 +23,46 @@ process GET_ANALYSES {
     )
 
     // Group jobs by UPI so that we only need to write one FASTA for each unique max UPI
-    analyses = [:].withDefault { key ->
-    def (from, to) = key.split('-')
-        [
-            upiFrom: from,
-            upiTo:   to,
-            jobs:    []
-        ]
-    } // upiFrom-upiTo: [upiFrom: str, upiTo: str, jobs: list<jobs>]
+    analyses = [:].withDefault { [] } // upiFrom-upiTo: [jobs]
 
     // Get the new analyses from the iprscan.analysis table
     def analysis_rows = db.getAnalyses()
+    def resubmission = false
     upiTo = null
     for (row: analysis_rows) {
         (upiFrom, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion, gpu) = row
         application = new Application(dbName, dbVersion, matchTable, siteTable)
         job = new Job(
             analysisId.toInteger(),
+            resubmission,
             upiFrom,
             dataDir,
             interproVersion,
             gpu,
             application
         )
-        analyses["${upiFrom}-${upiTo}"].jobs << job
+        analyses["${upiFrom}-${upiTo}"] << job
     }
 
-    // Get analyses/jobs that failed to run previously so that they can be re-run
+    // Get analyses/jobs that failed to run previously so that they can be re-run/resubmit
     def job_rows = db.getFailedJobs()
+    resubmission = true
     for (row: job_rows) {
         (analysisId, upiFrom, upiTo, seqCount, dataDir, interproVersion, dbName, matchTable, siteTable, dbVersin, gpu) = row
         application = new Application(dbName, dbVersion, matchTable, siteTable)
         job = new Job(
             analysisId.toInteger(),
+            resubmision,
             upiFrom,
             dataDir,
             interproVersion,
             gpu,
             application,
-            null,
-            null,
             seqCount,
             upiFrom,
             upiTo
         )
-        analyses["${upiFrom}-${upiTo}"].jobs << job
+        analyses["${upiFrom}-${upiTo}"] << job
     }
 
     db.close()
@@ -117,10 +112,9 @@ process BUILD_JOBS {
     // for each UPI range (from - to) build FASTA files of the protein sequences of a maxium batch_size
     def maxUpiTo = db.getMaxUPI()
     def fastaFiles = [:].withDefault { [] } // List<FastaFile>
-    analyses.each { key, analysisMap ->
-        upiFrom = analysisMap['upiFrom']
-        upiTo = analysisMap['upiTo'] == "null" ? maxUpiTo : analysisMap['upiTo'] // the job obj convert null to a str
-        fastaFiles[key].addAll( db.buildBatches(upiFrom, upiTo, task.workDir, batch_size) )
+    analyses.each { key, analysis ->
+        upiTo = analysis.upiTo ?: maxUpiTo
+        fastaFiles[key].addAll( db.buildBatches(analysis.upiFrom, upiTo, task.workDir, batch_size) )
     }
 
     // Create a job for each batch per analysis, and assign the batches fasta file to the job
@@ -146,11 +140,9 @@ process BUILD_JOBS {
                 )
 
                 def batchJob = new Job(
-                    job.analysisId, fasta.upiFrom,
-                    job.dataDir, job.interproVersion,
-                    job.gpu, job.application,
-                    iprscanConfig,
-                    fasta.path, fasta.seqCount,
+                    job.analysisId, job.resubmission, fasta.upiFrom,
+                    job.dataDir, job.interproVersion, job.gpu, job.application,
+                    iprscanConfig, fasta.path, fasta.seqCount,
                     fasta.upiFrom, fasta.upiTo
                 )
 
@@ -166,9 +158,10 @@ process BUILD_JOBS {
                     ]
                 )
 
+                upiTo_updated_hash = int_to_upi(upi_to_int(batchJob.upiTo) + 1)
                 analysisRecords.add(
                     [
-                        upiTo,
+                        upiTo_updated_hash,
                         batchJob.analysisId
                     ]
                 )
@@ -179,4 +172,28 @@ process BUILD_JOBS {
     db.insertJobs(jobRecords)
     db.updateAnalyses(analysisRecords)
     db.close()
+}
+
+
+def upi_to_int(String upi) {
+    if (upi == null || !upi.startsWith("UPI") || upi.length() != 13) {
+        throw new IllegalArgumentException("Invalid UniParc ID: ${upi}")
+    }
+    def hexPart = upi.substring(3)
+    if (!(hexPart ==~ /^[0-9A-Fa-f]{10}$/)) {
+        throw new IllegalArgumentException("Invalid UniParc ID hex: ${upi}")
+    }
+    return Long.parseLong(hexPart, 16)
+}
+
+
+def int_to_upi(long value) {
+    if (value < 0) {
+        throw new IllegalArgumentException("UniParc ID value must be non-negative: ${value}")
+    }
+    def hexPart = Long.toHexString(value).toUpperCase()
+    if (hexPart.length() > 10) {
+        throw new IllegalArgumentException("UniParc ID hex exceeds 10 chars: ${hexPart}")
+    }
+    return "UPI" + hexPart.padLeft(10, '0')
 }

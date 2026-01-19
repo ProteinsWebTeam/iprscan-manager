@@ -8,6 +8,7 @@ import java.time.format.DateTimeFormatter
 
 class Job implements Serializable {
     Integer analysisId             // Analysis ID in the ISPRO db
+    Boolean resubmission           // Resubmission of a failed job in intproscan-db.iprscan.analysis_jobs
     String maxUpi                  // Max UPI to analyse
     String dataDir                 // Str repr of the path to the interproscan 6 data dir
     String interproVersion         // InterPro database release to use
@@ -22,6 +23,7 @@ class Job implements Serializable {
 
     Job(
         Integer analysis_id,
+        Boolean resubmission,
         String max_upi,
         String data_dir,
         String interpro_version,
@@ -29,6 +31,7 @@ class Job implements Serializable {
         Application application
     ) {
         this.analysisId = analysis_id
+        this.resubmision = resubmision
         this.maxUpi = max_upi
         this.dataDir = data_dir
         this.interproVersion = interpro_version
@@ -38,6 +41,33 @@ class Job implements Serializable {
 
     Job(
         Integer analysis_id,
+        Boolean resubmission,
+        String max_upi,
+        String data_dir,
+        String interpro_version,
+        Boolean gpu,
+        Application application,
+        Iprscan iprscan,
+        String fasta,
+        Integer seqCount,
+        String upiFrom,
+        String upiTo
+    ) {
+        this.analysisId = analysis_id
+        this.resubmision = resubmision
+        this.maxUpi = max_upi
+        this.dataDir = data_dir
+        this.interproVersion = interpro_version
+        this.gpu = gpu
+        this.application = application
+        this.seqCount = seqCount
+        this.upiFrom = upiFrom
+        this.upiTo = upiTo
+    }
+
+    Job(
+        Integer analysis_id,
+        Boolean resubmission,
         String max_upi,
         String data_dir,
         String interpro_version,
@@ -54,6 +84,7 @@ class Job implements Serializable {
         def createdTime = now.format(formatter)
 
         this.analysisId = analysis_id
+        this.resubmision = resubmision
         this.maxUpi = max_upi
         this.dataDir = data_dir
         this.interproVersion = interpro_version
