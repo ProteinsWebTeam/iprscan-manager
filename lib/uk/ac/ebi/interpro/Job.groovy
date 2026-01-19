@@ -21,6 +21,7 @@ class Job implements Serializable {
     String createdTime = null      // Time sbatch job is created - for insertion into the ANALYSIS_JOBS table
     Iprscan iprscan = null         // Iprscan class instance - stores executable and configuration for iprscan
 
+    // Used to create new jobs for analyses in intproscan.iprscan.analysis
     Job(
         Integer analysis_id,
         Boolean resubmission,
@@ -39,6 +40,7 @@ class Job implements Serializable {
         this.application = application
     }
 
+    // Use to create jobs to resubmit failed jobs in intproscan.iprscan.analysis_jobs
     Job(
         Integer analysis_id,
         Boolean resubmission,
@@ -65,6 +67,7 @@ class Job implements Serializable {
         this.upiTo = upiTo
     }
 
+    // Used to build the individual jobs for each batch (an analysis may be broken up into multiple batches)
     Job(
         Integer analysis_id,
         Boolean resubmission,
@@ -74,7 +77,6 @@ class Job implements Serializable {
         Boolean gpu,
         Application application,
         Iprscan iprscan,
-        String fasta,
         Integer seqCount,
         String upiFrom,
         String upiTo
@@ -91,8 +93,6 @@ class Job implements Serializable {
         this.gpu = gpu
         this.application = application
         this.iprscan = iprscan
-
-        this.fasta = fasta
         this.seqCount = seqCount
         this.upiFrom = upiFrom
         this.upiTo = upiTo

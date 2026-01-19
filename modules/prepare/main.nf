@@ -109,22 +109,23 @@ process BUILD_JOBS {
         iprscan_db_conf.engine
     )
 
-    // for each UPI range (from - to) build FASTA files of the protein sequences of a maxium batch_size
+    // for each UPI range (from - to) identify the upi ranges for the batches
     def maxUpiTo = db.getMaxUPI()
-    def fastaFiles = [:].withDefault { [] } // List<FastaFile>
+    def batches = [:].withDefault { [] } // [[upiFrom: str, upiTo: str, seqCount: int]]
     analyses.each { key, analysis ->
         upiTo = analysis.upiTo ?: maxUpiTo
-        fastaFiles[key].addAll( db.buildBatches(analysis.upiFrom, upiTo, task.workDir, batch_size) )
+        batches[key].addAll( db.defineBatches(analysis.upiFrom, upiTo, task.workDir, batch_size) )
     }
 
-    // Create a job for each batch per analysis, and assign the batches fasta file to the job
+    // Create a job for each batch per analysis
     cpuJobs = []
     gpuJobs = []
     jobRecords = []
     analysisRecords = []
-    fastaFiles.each { String key, List<FastaFile> fastaFilesList ->
+    batches.each { String key, List<Map> batchMaps ->
         analyses[key].each { Job job ->
-            fastaFilesList.each { FastaFile fasta ->
+            batchMaps.each { Map batch ->
+
                 def iprscanSource = job.gpu ? gpu_iprscan : cpu_iprscan
                 Iprscan iprscanConfig = new Iprscan(
                     iprscanSource.executable,
@@ -140,14 +141,15 @@ process BUILD_JOBS {
                 )
 
                 def batchJob = new Job(
-                    job.analysisId, job.resubmission, fasta.upiFrom,
-                    job.dataDir, job.interproVersion, job.gpu, job.application,
-                    iprscanConfig, fasta.path, fasta.seqCount,
-                    fasta.upiFrom, fasta.upiTo
+                    job.analysisId, job.resubmission, job.maxUpi,
+                    job.dataDir, job.interproVersion, job.gpu,
+                    job.application, iprscanConfig,
+                    batch.seqCount, batch.upiFrom, batch.upiTo
                 )
 
                 (job.gpu ? gpuJobs : cpuJobs) << batchJob
 
+                // create a new record for the job in the interproscan.iprscan.analysis_jobs table
                 jobRecords.add(
                     [
                         batchJob.analysisId,
@@ -158,6 +160,8 @@ process BUILD_JOBS {
                     ]
                 )
 
+                // update the maxupi for analyses in the interproscan.iprscan.analyis table
+                // so that future jobs automatically pick up from where this analysis ended
                 upiTo_updated_hash = int_to_upi(upi_to_int(batchJob.upiTo) + 1)
                 if (!job.resubmision) {
                     analysisRecords.add(
@@ -198,4 +202,33 @@ def int_to_upi(long value) {
         throw new IllegalArgumentException("UniParc ID hex exceeds 10 chars: ${hexPart}")
     }
     return "UPI" + hexPart.padLeft(10, '0')
+}
+
+
+process EXPORT_FASTA {
+    // Build the fasta file for each upi-range
+    // This saves writing duplicate files when multiple analyses are activated
+    executor 'local'
+    maxForks 10
+
+    input:
+    val iprscan_db_conf
+    tuple val(meta), val(job), val(gpu)
+
+    output:
+    tuple val(meta), val(job), val(gpu)
+
+    exec:
+    Database db = new Database(
+        iprscan_db_conf.uri,
+        iprscan_db_conf.user,
+        iprscan_db_conf.password,
+        iprscan_db_conf.engine
+    )
+
+    def fastaPath = task.workDir.resolve("${job.upiFrom}_${job.upiTo}.faa")
+    def seqCount = db.writeFasta(job.upiFrom, job.upiTo, fastaPath.toString())
+    job.fasta = fastaPath.toString()
+
+    db.close()
 }

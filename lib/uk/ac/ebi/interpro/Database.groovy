@@ -178,15 +178,15 @@ class Database {
         ).collect { it.UPI }
     }
 
-    List<FastaFile> buildBatches(String upi_from, String upi_to, Path taskDir, int batch_size) {
+    List<Map> defineBatches(String upi_from, String upi_to, Path taskDir, int batch_size) {
         String query = """
             SELECT UPI
             FROM IPRSCAN.PROTEIN
             WHERE UPI > ? AND UPI <= ?
             ORDER BY UPI
         """
-        def batchStart, batchEnd, fasta, seqCount
-        List<FastaFile> fastas = []
+        def batchStart, batchEnd, seqCount
+        List<Map> batches = []  // [[upiFrom: str, upiTo: str, seqCount: int]]
         Integer count = 0
 
         // For PostgreSQL: disable auto-commit and set fetch size for proper streaming
@@ -211,12 +211,7 @@ class Database {
                 count++
 
                 if (count % batch_size == 0) {
-                    // end of batch, write the fasta file
-                    fasta = taskDir.resolve("upiFrom_${batchStart}_upiTo_${batchEnd}.faa")
-                    if (!fasta.exists()) {
-                        seqCount = this.writeFasta(batchStart, batchEnd, fasta.toString())
-                        fastas << new FastaFile(fasta.toString(), batchStart, batchEnd, seqCount)
-                    }
+                    batches << [upiFrom: batchStart, upiTo: batchEnd, seqCount = count]
                 }
             }
 
@@ -228,14 +223,10 @@ class Database {
 
         // Don't forget the last batch
         if (count % batch_size && batchStart != null) {
-            fasta = taskDir.resolve("upiFrom_${batchStart}_upiTo_${batchEnd}.faa")
-            if (!fasta.exists()) {
-                seqCount = this.writeFasta(batchStart, batchEnd, fasta.toString())
-                fastas << new FastaFile(fasta.toString(), batchStart, batchEnd, seqCount)
-            }
+            batches << [upiFrom: batchStart, upiTo: batchEnd, seqCount = count]
         }
 
-        return fastas
+        return batches
     }
 
     Integer writeFasta(String upi_from, String upi_to, String fasta) {

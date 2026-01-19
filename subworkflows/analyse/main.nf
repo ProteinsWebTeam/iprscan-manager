@@ -1,9 +1,10 @@
-include { INIT_PIPELINE                              } from "./init"
-include { GET_ANALYSES; BUILD_JOBS                   } from "../../modules/prepare"
-include { RUN_INTERPROSCAN_CPU; RUN_INTERPROSCAN_GPU } from "../../modules/interproscan"
-include { PERSIST_MATCHES                            } from "../../modules/persist/matches"
-include { UPDATE_JOBS                                } from "../../modules/persist/jobs"
-include { CLEAN_FASTAS; CLEAN_WORKDIRS               } from "../../modules/clean"
+include { INIT_PIPELINE                                                      } from "./init"
+include { GET_ANALYSES; BUILD_JOBS                                           } from "../../modules/prepare"
+include { EXPORT_FASTA as EXPORT_FASTA_CPU; EXPORT_FASTA as EXPORT_FASTA_GPU } from "../../modules/prepare"
+include { RUN_INTERPROSCAN_CPU; RUN_INTERPROSCAN_GPU                         } from "../../modules/interproscan"
+include { PERSIST_MATCHES                                                    } from "../../modules/persist/matches"
+include { UPDATE_JOBS                                                        } from "../../modules/persist/jobs"
+include { CLEAN_FASTAS; CLEAN_WORKDIRS                                       } from "../../modules/clean"
 
 workflow ANALYSE {
     take:
@@ -47,6 +48,9 @@ workflow ANALYSE {
         .map { gpu_jobs -> gpu_jobs.indexed() }
         .flatMap()
         .map { entry -> [entry.key, entry.value, true] }
+    
+    ch_cpu_jobs = EXPORT_FASTA_CPU(db_config["intprscan"], ch_cpu_jobs)
+    ch_gpu_jobs = EXPORT_FASTA_GPU(db_config["intprscan"], ch_gpu_jobs)
 
     /*
     If RUN_INTERPROSCAN is succesful, persist the matches and update the ANALYSIS_JOBS table.
@@ -54,7 +58,6 @@ workflow ANALYSE {
     If RUN_INTERPROSCAN fails skip straight to updating the ANALYSIS_JOBS table.
     */
     iprscan_cpu_out = RUN_INTERPROSCAN_CPU(ch_cpu_jobs)
-
     iprscan_gpu_out = RUN_INTERPROSCAN_GPU(ch_gpu_jobs)
 
     ch_iprscan_results = iprscan_cpu_out
