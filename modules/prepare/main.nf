@@ -13,6 +13,7 @@ process GET_ANALYSES {
 
     output:
     val analyses
+    val analysisList
 
     exec:
     Database db = new Database(
@@ -22,8 +23,9 @@ process GET_ANALYSES {
         iprscan_db_conf.engine
     )
 
-    // Group jobs by UPI so that we only need to write one FASTA for each unique max UPI
+    // Group jobs by UPI so that we only need query to define the batches once per unique upi range
     analyses = [:].withDefault { [] } // [upiFrom-upiTo: [jobs]]
+    analysisList = [] as Set
 
     // Get the new analyses from the iprscan.analysis table
     def analysis_rows = db.getAnalyses()
@@ -42,6 +44,7 @@ process GET_ANALYSES {
             application
         )
         analyses["${upiFrom}-${upiTo}"] << job
+        analysisList.add("${job.analysisId.toString().padRight(6)}\t${job.application.name.padRight(20)}\t$job.application.version")
     }
 
     // Get analyses/jobs that failed to run previously so that they can be re-run/resubmit
@@ -63,6 +66,7 @@ process GET_ANALYSES {
             upiTo
         )
         analyses["${upiFrom}-${upiTo}"] << job
+        analysisList.add("${job.analysisId.toString().padRight(6)}\t${job.application.name.padRight(20)}\t$job.application.version")
     }
 
     db.close()
