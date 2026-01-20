@@ -8,6 +8,7 @@ import java.time.format.DateTimeFormatter
 
 class Job implements Serializable {
     Integer analysisId             // Analysis ID in the ISPRO db
+    Boolean resubmission           // Resubmission of a failed job in intproscan-db.iprscan.analysis_jobs
     String maxUpi                  // Max UPI to analyse
     String dataDir                 // Str repr of the path to the interproscan 6 data dir
     String interproVersion         // InterPro database release to use
@@ -21,7 +22,19 @@ class Job implements Serializable {
     Iprscan iprscan = null         // Iprscan class instance - stores executable and configuration for iprscan
 
     Job(
+        Integer analysis_id
+    ) {
+        def now = LocalDateTime.now()
+        def formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+        def createdTime = now.format(formatter)
+        this.analysisId = analysis_id
+        this.createdTime = createdTime
+    }
+
+    // Used to create new jobs for analyses in intproscan.iprscan.analysis
+    Job(
         Integer analysis_id,
+        Boolean resubmission,
         String max_upi,
         String data_dir,
         String interpro_version,
@@ -29,6 +42,7 @@ class Job implements Serializable {
         Application application
     ) {
         this.analysisId = analysis_id
+        this.resubmission = resubmission
         this.maxUpi = max_upi
         this.dataDir = data_dir
         this.interproVersion = interpro_version
@@ -36,15 +50,41 @@ class Job implements Serializable {
         this.application = application
     }
 
+    // Use to create jobs to resubmit failed jobs in intproscan.iprscan.analysis_jobs
     Job(
         Integer analysis_id,
+        Boolean resubmission,
+        String max_upi,
+        String data_dir,
+        String interpro_version,
+        Boolean gpu,
+        Application application,
+        Integer seqCount,
+        String upiFrom,
+        String upiTo
+    ) {
+        this.analysisId = analysis_id
+        this.resubmission = resubmission
+        this.maxUpi = max_upi
+        this.dataDir = data_dir
+        this.interproVersion = interpro_version
+        this.gpu = gpu
+        this.application = application
+        this.seqCount = seqCount
+        this.upiFrom = upiFrom
+        this.upiTo = upiTo
+    }
+
+    // Used to build the individual jobs for each batch (an analysis may be broken up into multiple batches)
+    Job(
+        Integer analysis_id,
+        Boolean resubmission,
         String max_upi,
         String data_dir,
         String interpro_version,
         Boolean gpu,
         Application application,
         Iprscan iprscan,
-        String fasta,
         Integer seqCount,
         String upiFrom,
         String upiTo
@@ -54,14 +94,13 @@ class Job implements Serializable {
         def createdTime = now.format(formatter)
 
         this.analysisId = analysis_id
+        this.resubmission = resubmission
         this.maxUpi = max_upi
         this.dataDir = data_dir
         this.interproVersion = interpro_version
         this.gpu = gpu
         this.application = application
         this.iprscan = iprscan
-
-        this.fasta = fasta
         this.seqCount = seqCount
         this.upiFrom = upiFrom
         this.upiTo = upiTo
