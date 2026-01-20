@@ -123,6 +123,22 @@ class Database {
         return this.sql.rows(query)
     }
 
+    List<String> getFailedJobs() {
+        def query = """
+            SELECT DISTINCT(J.analysis_id, J.upi_from, J.upi_to),
+                J.analysis_id, J.upi_from, J.upi_to, J.sequences,
+                A.i6_dir, A.interpro_version, A.name,
+                T.match_table, T.site_table, A.version, A.gpu
+            FROM iprscan.analysis_jobs J
+            INNER JOIN iprscan.analysis A ON J.analysis_id = A.id
+            INNER JOIN iprscan.analysis_tables T
+                ON LOWER(A.name) = LOWER(T.name)
+            WHERE success IS NULL
+            OR success = FALSE;
+        """
+        return this.sql.rows(query)
+    }
+
     Map<String, Map> getPartitions(table_name) {
         // The parition bound is "DEFAULT" or "FOR VALUES IN ($analysis_id)"
         String query ="""
@@ -163,15 +179,15 @@ class Database {
         ).collect { it.UPI }
     }
 
-    List<FastaFile> buildBatches(String upi_from, String upi_to, Path taskDir, int batch_size) {
+    List<Map> defineBatches(String upi_from, String upi_to, Path taskDir, int batch_size) {
         String query = """
             SELECT UPI
             FROM IPRSCAN.PROTEIN
             WHERE UPI > ? AND UPI <= ?
             ORDER BY UPI
         """
-        def batchStart, batchEnd, fasta, seqCount
-        List<FastaFile> fastas = []
+        def batchStart, batchEnd, seqCount
+        List<Map> batches = []  // [[upiFrom: str, upiTo: str, seqCount: int]]
         Integer count = 0
 
         // For PostgreSQL: disable auto-commit and set fetch size for proper streaming
@@ -190,18 +206,13 @@ class Database {
                 if (count % batch_size == 0) {
                     // start a new batch
                     batchStart = upi
-                    fasta = null
+                    count = 0
                 } 
                 batchEnd = upi
                 count++
 
                 if (count % batch_size == 0) {
-                    // end of batch, write the fasta file
-                    fasta = taskDir.resolve("upiFrom_${batchStart}_upiTo_${batchEnd}.faa")
-                    if (!fasta.exists()) {
-                        seqCount = this.writeFasta(batchStart, batchEnd, fasta.toString())
-                        fastas << new FastaFile(fasta.toString(), batchStart, batchEnd, seqCount)
-                    }
+                    batches << [upiFrom: batchStart, upiTo: batchEnd, seqCount: count]
                 }
             }
 
@@ -213,14 +224,10 @@ class Database {
 
         // Don't forget the last batch
         if (count % batch_size && batchStart != null) {
-            fasta = taskDir.resolve("upiFrom_${batchStart}_upiTo_${batchEnd}.faa")
-            if (!fasta.exists()) {
-                seqCount = this.writeFasta(batchStart, batchEnd, fasta.toString())
-                fastas << new FastaFile(fasta.toString(), batchStart, batchEnd, seqCount)
-            }
+            batches << [upiFrom: batchStart, upiTo: batchEnd, seqCount: count]
         }
 
-        return fastas
+        return batches
     }
 
     Integer writeFasta(String upi_from, String upi_to, String fasta) {
@@ -527,6 +534,29 @@ class Database {
                 preparedStmt.addBatch(row)
             }
         }
+    }
+
+    void insertEmptyJobs(List<List> values) {
+        String insertQuery = """INSERT INTO iprscan.analysis_jobs (
+            analysis_id, upi_from, upi_to,
+            created_time, sequences, success
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    String getAnalysisMaxUpi(Integer analysis_id) {
+        String query = """
+            SELECT max_upi
+            FROM iprscan.analysis
+            WHERE id = ?
+        """
+        return this.sql.rows(query, [analysis_id])[0][0]
     }
 
     void updateAnalyses(List<List> values) {

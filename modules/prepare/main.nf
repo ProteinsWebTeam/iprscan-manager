@@ -23,14 +23,48 @@ process GET_ANALYSES {
     )
 
     // Group jobs by UPI so that we only need to write one FASTA for each unique max UPI
-    analyses = [:].withDefault { [] }  // UPI: [Jobs]
+    analyses = [:].withDefault { [] } // [upiFrom-upiTo: [jobs]]
+
+    // Get the new analyses from the iprscan.analysis table
     def analysis_rows = db.getAnalyses()
+    def resubmission = false
+    upiTo = null
     for (row: analysis_rows) {
-        (maxUpi, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion, gpu) = row
+        (upiFrom, dataDir, interproVersion, dbName, matchTable, siteTable, analysisId, dbVersion, gpu) = row
         application = new Application(dbName, dbVersion, matchTable, siteTable)
-        job = new Job(analysisId.toInteger(), maxUpi, dataDir, interproVersion, gpu, application)
-        analyses[maxUpi] << job
+        job = new Job(
+            analysisId.toInteger(),
+            resubmission,
+            upiFrom,
+            dataDir,
+            interproVersion,
+            gpu,
+            application
+        )
+        analyses["${upiFrom}-${upiTo}"] << job
     }
+
+    // Get analyses/jobs that failed to run previously so that they can be re-run/resubmit
+    def job_rows = db.getFailedJobs()
+    resubmission = true
+    for (row: job_rows) {
+        (_, analysisId, upiFrom, upiTo, seqCount, dataDir, interproVersion, dbName, matchTable, siteTable, dbVersin, gpu) = row
+        application = new Application(dbName, dbVersion, matchTable, siteTable)
+        job = new Job(
+            analysisId.toInteger(),
+            resubmission,
+            upiFrom,
+            dataDir,
+            interproVersion,
+            gpu,
+            application,
+            seqCount,
+            upiFrom,
+            upiTo
+        )
+        analyses["${upiFrom}-${upiTo}"] << job
+    }
+
     db.close()
 }
 
@@ -75,22 +109,43 @@ process BUILD_JOBS {
         iprscan_db_conf.engine
     )
 
-    // for each UPI range (from - to) build FASTA files of the protein sequences of a maxium batch_size
-    def upiTo = db.getMaxUPI()
-    def maxUPIs = analyses.keySet()
-    def fastaFiles = [:].withDefault { [] } // List<FastaFile>
-    maxUPIs.each { String upiFrom ->
-        fastaFiles[upiFrom].addAll( db.buildBatches(upiFrom, upiTo, task.workDir, batch_size) )
+    // For each UPI range (from - to) identify the upi ranges for the batches
+    def maxUpiTo = db.getMaxUPI()
+    def allBatches = [:].withDefault { [] } // [[upiFrom: str, upiTo: str, seqCount: int]]
+    analyses.each { key, analysisList ->
+        def upiFrom = analysisList[0].maxUpi
+        def upiTo = analysisList[0].upiTo ?: maxUpiTo
+        allBatches[key] = [
+            upiFrom: upiFrom,
+            upiTo: upiTo,
+            batches: db.defineBatches(upiFrom, upiTo, task.workDir, batch_size)
+        ]
     }
 
-    // Create a job for each batch per analysis, and assign the batches fasta file to the job
+    // Create a job for each batch per analysis, and persist the jobs in the interproscan.iprscan.analysis_jobs table
     cpuJobs = []
     gpuJobs = []
-    jobRecords = []
-    analysisRecords = []
-    fastaFiles.each { String upiFrom, List<FastaFile> fastaFilesList ->
-        analyses[upiFrom].each { Job job ->
-            fastaFilesList.each { FastaFile fasta ->
+    def jobRecords = []
+    def emptyJobRecords = []
+    def jobsByAnalysis = [:].withDefault { [] }
+    allBatches.each { String key, Map batchMap ->
+        analyses[key].each { Job job ->
+            if (batchMap.batches.isEmpty()) { // no seqs to analyse, mark these jobs as successful
+                def seqCount = 0
+                def success = true
+                def batchJob = new Job(job.analysisId)
+                emptyJobRecords.add( [
+                        job.analysisId,
+                        batchMap.upiFrom,
+                        batchMap.upiTo,
+                        java.sql.Timestamp.valueOf(batchJob.createdTime),
+                        seqCount,
+                        success
+                    ]
+                )
+            }
+
+            batchMap.batches.each { Map batch ->
                 def iprscanSource = job.gpu ? gpu_iprscan : cpu_iprscan
                 Iprscan iprscanConfig = new Iprscan(
                     iprscanSource.executable,
@@ -106,12 +161,10 @@ process BUILD_JOBS {
                 )
 
                 def batchJob = new Job(
-                    job.analysisId, fasta.upiFrom,
-                    job.dataDir, job.interproVersion,
-                    job.gpu, job.application,
-                    iprscanConfig,
-                    fasta.path, fasta.seqCount,
-                    fasta.upiFrom, fasta.upiTo
+                    job.analysisId, job.resubmission, job.maxUpi,
+                    job.dataDir, job.interproVersion, job.gpu,
+                    job.application, iprscanConfig,
+                    batch.seqCount, batch.upiFrom, batch.upiTo
                 )
 
                 (job.gpu ? gpuJobs : cpuJobs) << batchJob
@@ -126,17 +179,92 @@ process BUILD_JOBS {
                     ]
                 )
 
-                analysisRecords.add(
-                    [
-                        upiTo,
-                        batchJob.analysisId
-                    ]
-                )
+                jobsByAnalysis[job.analysisId] << [job: job, batch: batch]
             }
         }
     }
+    if (!emptyJobRecords.isEmpty()) {
+        db.insertEmptyJobs(emptyJobRecords)
+    }
+    if (!jobRecords.isEmpty()) {
+        db.insertJobs(jobRecords)
+    }
 
-    db.insertJobs(jobRecords)
-    db.updateAnalyses(analysisRecords)
+    // Identify analysis records whose maxUpi needs updating
+    def analysisRecords = []
+    groupedAnalyses = jobsByAnalysis.collectEntries { Integer analysisId, List<Map> entries ->
+        // If there is a new analysis (a non-resubmission) use the maximum upi of the db
+        def anyNewAnalyses = entries.any { !it.job.resubmission }
+        if (anyNewAnalyses) {
+            analysisRecords.add( [int_to_upi(maxUpiTo), analysisId])
+        }
+
+        // We are only handling resubmitted jobs, grab the max upi from these resubmitted jobs
+        // and only update if it is greater than the current max_upi in iprscan.analysis
+        def newMaxUpi = entries.collect {
+            upi_to_int(it.batch.upiTo) + 1
+        }.max()
+        currentMaxUpi = upi_to_int(db.getAnalysisMaxUpi(analysisId))
+        if (currentMaxUpi < newMaxUpi) {
+            analysisRecords.add( [int_to_upi(newMaxUpi), analysisId] )
+        }
+    }
+    if (!analysisRecords.isEmpty()) {
+        db.updateAnalyses(analysisRecords)
+    }
+
+    db.close()
+}
+
+
+def upi_to_int(String upi) {
+    if (upi == null || !upi.startsWith("UPI") || upi.length() != 13) {
+        throw new IllegalArgumentException("Invalid UniParc ID: ${upi}")
+    }
+    def hexPart = upi.substring(3)
+    if (!(hexPart ==~ /^[0-9A-Fa-f]{10}$/)) {
+        throw new IllegalArgumentException("Invalid UniParc ID hex: ${upi}")
+    }
+    return Long.parseLong(hexPart, 16)
+}
+
+
+def int_to_upi(long value) {
+    if (value < 0) {
+        throw new IllegalArgumentException("UniParc ID value must be non-negative: ${value}")
+    }
+    def hexPart = Long.toHexString(value).toUpperCase()
+    if (hexPart.length() > 10) {
+        throw new IllegalArgumentException("UniParc ID hex exceeds 10 chars: ${hexPart}")
+    }
+    return "UPI" + hexPart.padLeft(10, '0')
+}
+
+
+process EXPORT_FASTA {
+    // Build the fasta file for each upi-range
+    // This saves writing duplicate files when multiple analyses are activated
+    executor 'local'
+    maxForks 10
+
+    input:
+    val iprscan_db_conf
+    tuple val(meta), val(job), val(gpu)
+
+    output:
+    tuple val(meta), val(job), val(gpu)
+
+    exec:
+    Database db = new Database(
+        iprscan_db_conf.uri,
+        iprscan_db_conf.user,
+        iprscan_db_conf.password,
+        iprscan_db_conf.engine
+    )
+
+    def fastaPath = task.workDir.resolve("${job.upiFrom}_${job.upiTo}.faa")
+    def seqCount = db.writeFasta(job.upiFrom, job.upiTo, fastaPath.toString())
+    job.fasta = fastaPath.toString()
+
     db.close()
 }
