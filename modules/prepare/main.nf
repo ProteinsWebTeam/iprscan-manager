@@ -48,7 +48,7 @@ process GET_ANALYSES {
     def job_rows = db.getFailedJobs()
     resubmission = true
     for (row: job_rows) {
-        (analysisId, upiFrom, upiTo, seqCount, dataDir, interproVersion, dbName, matchTable, siteTable, dbVersin, gpu) = row
+        (_, analysisId, upiFrom, upiTo, seqCount, dataDir, interproVersion, dbName, matchTable, siteTable, dbVersin, gpu) = row
         application = new Application(dbName, dbVersion, matchTable, siteTable)
         job = new Job(
             analysisId.toInteger(),
@@ -109,23 +109,43 @@ process BUILD_JOBS {
         iprscan_db_conf.engine
     )
 
-    // for each UPI range (from - to) identify the upi ranges for the batches
+    // For each UPI range (from - to) identify the upi ranges for the batches
     def maxUpiTo = db.getMaxUPI()
-    def batches = [:].withDefault { [] } // [[upiFrom: str, upiTo: str, seqCount: int]]
+    def allBatches = [:].withDefault { [] } // [[upiFrom: str, upiTo: str, seqCount: int]]
     analyses.each { key, analysisList ->
-        upiTo = analysisList[0].upiTo ?: maxUpiTo
-        batches[key].addAll( db.defineBatches(analysisList[0].maxUpi, upiTo, task.workDir, batch_size) )
+        def upiFrom = analysisList[0].maxUpi
+        def upiTo = analysisList[0].upiTo ?: maxUpiTo
+        allBatches[key] = [
+            upiFrom: upiFrom,
+            upiTo: upiTo,
+            batches: db.defineBatches(upiFrom, upiTo, task.workDir, batch_size)
+        ]
     }
 
-    // Create a job for each batch per analysis
+    // Create a job for each batch per analysis, and persist the jobs in the interproscan.iprscan.analysis_jobs table
     cpuJobs = []
     gpuJobs = []
-    jobRecords = []
-    groupedAnalyses = [:].withDefault { [resubmissionsOnly: true, maxUpi: 0] } // analysis_id: bool if only resubmissions
-    batches.each { String key, List<Map> batchMaps ->
+    def jobRecords = []
+    def emptyJobRecords = []
+    def jobsByAnalysis = [:].withDefault { [] }
+    allBatches.each { String key, Map batchMap ->
         analyses[key].each { Job job ->
-            batchMaps.each { Map batch ->
+            if (batchMap.batches.isEmpty()) { // no seqs to analyse, mark these jobs as successful
+                def seqCount = 0
+                def success = true
+                def batchJob = new Job(job.analysisId)
+                emptyJobRecords.add( [
+                        job.analysisId,
+                        batchMap.upiFrom,
+                        batchMap.upiTo,
+                        java.sql.Timestamp.valueOf(batchJob.createdTime),
+                        seqCount,
+                        success
+                    ]
+                )
+            }
 
+            batchMap.batches.each { Map batch ->
                 def iprscanSource = job.gpu ? gpu_iprscan : cpu_iprscan
                 Iprscan iprscanConfig = new Iprscan(
                     iprscanSource.executable,
@@ -149,7 +169,6 @@ process BUILD_JOBS {
 
                 (job.gpu ? gpuJobs : cpuJobs) << batchJob
 
-                // create a new record for the job in the interproscan.iprscan.analysis_jobs table
                 jobRecords.add(
                     [
                         batchJob.analysisId,
@@ -160,36 +179,40 @@ process BUILD_JOBS {
                     ]
                 )
 
-                if (groupedAnalyses[job.analysisId].resubmissionsOnly && !job.resubmission) {
-                    // This is a new analysis for analysisID, so set the max up, and then we don't care about any of the max-upis after that
-                    groupedAnalyses[job.analysisId].resubmissionsOnly = false
-                    groupedAnalyses[job.analysisId].maxUpi = upi_to_int(maxUpiTo)
-                } else if (groupedAnalyses[job.analysisId].resubmissionsOnly && job.resubmission) {
-                    // We have only come across resubmitted jobs for this analysis ID, pick the max upi out these jobs
-                    newMaxUpi = upi_to_int(batchJob.upiTo) + 1
-                    groupedAnalyses[job.analysisIds].maxUpi = Math.max(groupedAnalyses[job.analysisIds].maxUpi, newMaxUpi)
-                }
+                jobsByAnalysis[job.analysisId] << [job: job, batch: batch]
             }
         }
     }
+    if (!emptyJobRecords.isEmpty()) {
+        db.insertEmptyJobs(emptyJobRecords)
+    }
+    if (!jobRecords.isEmpty()) {
+        db.insertJobs(jobRecords)
+    }
 
-    db.insertJobs(jobRecords)
+    // Identify analysis records whose maxUpi needs updating
+    def analysisRecords = []
+    groupedAnalyses = jobsByAnalysis.collectEntries { Integer analysisId, List<Map> entries ->
+        // If there is a new analysis (a non-resubmission) use the maximum upi of the db
+        def anyNewAnalyses = entries.any { !it.job.resubmission }
+        if (anyNewAnalyses) {
+            analysisRecords.add( [int_to_upi(maxUpiTo), analysisId])
+        }
 
-    // identify analysis records whose maxUpi needs updating
-    analysisRecords = []
-    groupedAnalyses.each { Integer analysisId, Map analysisMap ->
-        if (analysisMap.resubmissionsOnly) {
-            // compare the maxUpi to the existing upi in iprscan.analysis, and update if needed
-            currentMaxUpi = upi_to_int(db.getAnalysisMaxUpi(analysisId))
-            if (currentMaxUpi < analysisMap.maxUpi) {
-                analysisRecords.add( [int_to_upi(analysisMap.maxUpi), analysisId] )
-            }
-        } else {
-            // new analysis detected, so update to maxUpiTo
-            analysisRecords.add( [int_to_upi(analysisMap.maxUpi), analysisId] )
+        // We are only handling resubmitted jobs, grab the max upi from these resubmitted jobs
+        // and only update if it is greater than the current max_upi in iprscan.analysis
+        def newMaxUpi = entries.collect {
+            upi_to_int(it.batch.upiTo) + 1
+        }.max()
+        currentMaxUpi = upi_to_int(db.getAnalysisMaxUpi(analysisId))
+        if (currentMaxUpi < newMaxUpi) {
+            analysisRecords.add( [int_to_upi(newMaxUpi), analysisId] )
         }
     }
-    db.updateAnalyses(analysisRecords)
+    if (!analysisRecords.isEmpty()) {
+        db.updateAnalyses(analysisRecords)
+    }
+
     db.close()
 }
 

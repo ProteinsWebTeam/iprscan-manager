@@ -125,7 +125,8 @@ class Database {
 
     List<String> getFailedJobs() {
         def query = """
-            SELECT J.analysis_id, J.upi_from, J.upi_to, J.sequences,
+            SELECT DISTINCT(J.analysis_id, J.upi_from, J.upi_to),
+                J.analysis_id, J.upi_from, J.upi_to, J.sequences,
                 A.i6_dir, A.interpro_version, A.name,
                 T.match_table, T.site_table, A.version, A.gpu
             FROM iprscan.analysis_jobs J
@@ -535,7 +536,21 @@ class Database {
         }
     }
 
-    Integer getAnalysisMaxUpi(Integer analysis_id) {
+    void insertEmptyJobs(List<List> values) {
+        String insertQuery = """INSERT INTO iprscan.analysis_jobs (
+            analysis_id, upi_from, upi_to,
+            created_time, sequences, success
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        """
+        this.sql.withBatch(INSERT_SIZE, insertQuery) { preparedStmt ->
+            values.each { row ->
+                preparedStmt.addBatch(row)
+            }
+        }
+    }
+
+    String getAnalysisMaxUpi(Integer analysis_id) {
         String query = """
             SELECT max_upi
             FROM iprscan.analysis

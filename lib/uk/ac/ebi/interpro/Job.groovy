@@ -21,6 +21,16 @@ class Job implements Serializable {
     String createdTime = null      // Time sbatch job is created - for insertion into the ANALYSIS_JOBS table
     Iprscan iprscan = null         // Iprscan class instance - stores executable and configuration for iprscan
 
+    Job(
+        Integer analysis_id
+    ) {
+        def now = LocalDateTime.now()
+        def formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+        def createdTime = now.format(formatter)
+        this.analysisId = analysis_id
+        this.createdTime = createdTime
+    }
+
     // Used to create new jobs for analyses in intproscan.iprscan.analysis
     Job(
         Integer analysis_id,
