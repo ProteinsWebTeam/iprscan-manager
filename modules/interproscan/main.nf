@@ -24,7 +24,7 @@ process RUN_INTERPROSCAN_CPU {
     echo \$SLURM_JOB_ID > slurmJobId
     nextflow run ${job.iprscan.executable} \\
         -ansi-log false \\
-        --skip-interpro \\
+        --skip-repr-locations \\
         --formats json \\
         --no-matches-api \\
         --interpro ${job.interproVersion} \\
@@ -64,7 +64,7 @@ process RUN_INTERPROSCAN_GPU {
     echo \$SLURM_JOB_ID > slurmJobId
     nextflow run ${job.iprscan.executable} \\
         -ansi-log false \\
-        --skip-interpro \\
+        --skip-repr-locations \\
         --formats json \\
         --no-matches-api \\
         --interpro ${job.interproVersion} \\
