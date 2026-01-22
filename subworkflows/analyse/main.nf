@@ -27,14 +27,17 @@ workflow ANALYSE {
     db_config      = INIT_PIPELINE.out.dbConfig.val       // map of interpro oracle/postrgresql db info (user, pwd, etc.)
 
     analysesData = GET_ANALYSES(
-        db_config["intprscan"]
+        db_config["intprscan"],
+        analysis_ids
     )
     analyses     = analysesData[0]
     analysesList = analysesData[1]
 
     if (list) {
         // list the activated analyses and terminate
-        analysesList.view()
+        analysesList
+            .flatten()
+            .view()
     } else {
         all_jobs = BUILD_JOBS(
             db_config["intprscan"],

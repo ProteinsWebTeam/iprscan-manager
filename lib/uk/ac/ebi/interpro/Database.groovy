@@ -109,7 +109,7 @@ class Database {
         }
     }
 
-    List<String> getAnalyses() {
+    List<String> getAnalyses(Set analysis_ids) {
         def query = """
             SELECT A.max_upi, A.i6_dir, A.INTERPRO_VERSION, A.name,
                 T.match_table, T.site_table,
@@ -120,10 +120,17 @@ class Database {
             WHERE A.active AND
                 A.i6_dir IS NOT NULL
         """
-        return this.sql.rows(query)
+
+        if (analysis_ids) {
+            def placeholders = analysis_ids.collect { "?" }.join(", ")
+            query += " AND A.id IN (${placeholders})"
+            return this.sql.rows(query, analysis_ids as List)
+        } else {
+            return this.sql.rows(query)
+        }
     }
 
-    List<String> getFailedJobs() {
+    List<String> getFailedJobs(Set analysis_ids) {
         def query = """
             SELECT DISTINCT(J.analysis_id, J.upi_from, J.upi_to),
                 J.analysis_id, J.upi_from, J.upi_to, J.sequences,
@@ -133,10 +140,16 @@ class Database {
             INNER JOIN iprscan.analysis A ON J.analysis_id = A.id
             INNER JOIN iprscan.analysis_tables T
                 ON LOWER(A.name) = LOWER(T.name)
-            WHERE success IS NULL
-            OR success = FALSE;
+            WHERE success IS NULL OR success = FALSE
         """
-        return this.sql.rows(query)
+
+        if (analysis_ids) {
+            def placeholders = analysis_ids.collect { "? "}.join(", ")
+            query += " AND A.id IN (${placeholders})"
+            return this.sql.rows(query, analysis_ids as List)
+        } else {
+            return this.sql.rows(query)
+        }
     }
 
     Map<String, Map> getPartitions(table_name) {
