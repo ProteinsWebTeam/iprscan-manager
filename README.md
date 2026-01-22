@@ -20,7 +20,7 @@ The IPM pipeline relies on two configuration file. Templates can be found in the
 
 ### General configuration
 
-The `conf/ipm.conf` is used for the general configuration of IPM and InterProScan.
+The `conf/ipm.config` is used for the general configuration of IPM and InterProScan.
 
 > [!WARNING]  
 > The InterProScan6 work directory will be extremely large! Make sure to point
