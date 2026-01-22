@@ -104,6 +104,7 @@ process BUILD_JOBS {
     val cpu_iprscan
     val gpu_iprscan
     val batch_size
+    val max_jobs_per_analysis
 
     output:
     val cpuJobs
@@ -192,19 +193,21 @@ process BUILD_JOBS {
                     batch.seqCount, batch.upiFrom, batch.upiTo
                 )
 
-                (job.gpu ? gpuJobs : cpuJobs) << batchJob
+                if (max_jobs_per_analysis <= 0 || jobsByAnalysis[job.analysisId].size() < max_jobs_per_analysis) {
+                    (job.gpu ? gpuJobs : cpuJobs) << batchJob
 
-                jobRecords.add(
-                    [
-                        batchJob.analysisId,
-                        batchJob.upiFrom,
-                        batchJob.upiTo,
-                        java.sql.Timestamp.valueOf(batchJob.createdTime),
-                        batchJob.seqCount
-                    ]
-                )
+                    jobRecords.add(
+                        [
+                            batchJob.analysisId,
+                            batchJob.upiFrom,
+                            batchJob.upiTo,
+                            java.sql.Timestamp.valueOf(batchJob.createdTime),
+                            batchJob.seqCount
+                        ]
+                    )
 
-                jobsByAnalysis[job.analysisId] << [job: job, batch: batch]
+                    jobsByAnalysis[job.analysisId] << [job: job, batch: batch]
+                }
             }
         }
     }

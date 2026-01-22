@@ -45,7 +45,8 @@ workflow ANALYSE {
             analyses,
             cpu_iprscan,
             gpu_iprscan,
-            batch_size
+            batch_size,
+            max_jobs_per_analysis
         )
 
         // Index the jobs so we can identify successfully and failed jobs -> [[index, job, gpu[bool]], [index, job, gpu[bool]]]

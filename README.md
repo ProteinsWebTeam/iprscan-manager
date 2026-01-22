@@ -94,6 +94,7 @@ There is four optional argument:
 2. `--keep` - Do NOT delete the InterProScan6 work directories in the nf-ipm work directory. Default: all InterProScan6 `work` directories are deleted.
 3. `--list` - List the activated analyses and termination. Default: false.
 4. `--analysis-ids` - Limit the analyses to those specified in a comma-separated list. Default: none.
+5. `--max-jobs-per-analyses` - Limit the total number of jobs run for each analysis ID. Default: unlimited.
 
 For example:
 ```bash
