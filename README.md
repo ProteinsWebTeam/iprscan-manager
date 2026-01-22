@@ -20,7 +20,7 @@ The IPM pipeline relies on two configuration file. Templates can be found in the
 
 ### General configuration
 
-The `conf/ipm.conf` is used for the general configuration of IPM and InterProScan.
+The `conf/ipm.config` is used for the general configuration of IPM and InterProScan.
 
 > [!WARNING]  
 > The InterProScan6 work directory will be extremely large! Make sure to point
@@ -89,9 +89,12 @@ nextflow run main.nf -c conf/imp.conf --methods import --top-up
 The `ANALYSE` subworkflow coordinates running InterProScan for every "active" analysis in the `ISPRO.ANALYSIS` table,
 and persists all results in the `ISPRO` database.
 
-There is two optional argument:
+There is five optional argument:
 1. `--batch-size` - The maximum number of sequences to be analysed by each instance of InterProScan 6
 2. `--keep` - Do NOT delete the InterProScan6 work directories in the nf-ipm work directory. Default: all InterProScan6 `work` directories are deleted.
+3. `--list` - List the activated analyses and termination. Default: false.
+4. `--analysis-ids` - Limit the analyses to those specified in a comma-separated list. Default: none.
+5. `--max-jobs-per-analyses` - Limit the total number of jobs run for each analysis ID. Default: unlimited.
 
 For example:
 ```bash

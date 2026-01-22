@@ -22,6 +22,18 @@ class ProductionManager {
                     description: "[IMPORT] Maximum sequence UPI to import - only used by the 'import' method."
             ],
             [
+                    name: "max-jobs-per-analysis",
+                    description: "[ANALYSE] Maximum number of jobs to run per analysis (default: no limit)"
+            ],
+            [
+                    name: "list",
+                    description: "[ANALYSE] List analyses and exit (default: false)"
+            ],
+            [
+                    name: "analysis-ids",
+                    description: "[ANALYSE] Comma-separated analysis IDs to run (default: all)"
+            ],
+            [
                     name: "batch-size",
                     description: "[ANALYSE] Max number of sequences per InterProScan job"
             ],

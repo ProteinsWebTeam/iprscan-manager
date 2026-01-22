@@ -10,9 +10,11 @@ process GET_ANALYSES {
 
     input:
     val iprscan_db_conf
+    val analysis_ids
 
     output:
     val analyses
+    val analysisList
 
     exec:
     Database db = new Database(
@@ -22,11 +24,32 @@ process GET_ANALYSES {
         iprscan_db_conf.engine
     )
 
-    // Group jobs by UPI so that we only need to write one FASTA for each unique max UPI
+    // if --list is used, format the analyses for display
+    def widths = [6, 20, 0]
+    def headers = ["Id", "Name", "Version"]
+    def formatRow = { values ->
+        values
+            .indexed()
+            .collect { i, v ->
+                v.toString().padRight(widths[i])
+            } .join("\t")
+    }
+
+    // Group jobs by UPI so that we only need query to define the batches once per unique upi range
     analyses = [:].withDefault { [] } // [upiFrom-upiTo: [jobs]]
 
+    // If --analysis-ids is used, filter the jobs to run
+    analysisList = [formatRow(headers)] as Set
+    def selectedIds = [] as Set
+    selectedIds = analysis_ids.toString()
+        .split(",")
+        .collect { it.trim() }
+        .findAll { it }
+        .collect { it.toInteger() }
+        .toSet()
+
     // Get the new analyses from the iprscan.analysis table
-    def analysis_rows = db.getAnalyses()
+    def analysis_rows = db.getAnalyses(selectedIds)
     def resubmission = false
     upiTo = null
     for (row: analysis_rows) {
@@ -42,10 +65,11 @@ process GET_ANALYSES {
             application
         )
         analyses["${upiFrom}-${upiTo}"] << job
+        analysisList.add(formatRow([job.analysisId, job.application.name, job.application.version]))
     }
 
     // Get analyses/jobs that failed to run previously so that they can be re-run/resubmit
-    def job_rows = db.getFailedJobs()
+    def job_rows = db.getFailedJobs(selectedIds)
     resubmission = true
     for (row: job_rows) {
         (_, analysisId, upiFrom, upiTo, seqCount, dataDir, interproVersion, dbName, matchTable, siteTable, dbVersin, gpu) = row
@@ -63,6 +87,7 @@ process GET_ANALYSES {
             upiTo
         )
         analyses["${upiFrom}-${upiTo}"] << job
+        analysisList.add(formatRow([job.analysisId, job.application.name, job.application.version]))
     }
 
     db.close()
@@ -79,6 +104,7 @@ process BUILD_JOBS {
     val cpu_iprscan
     val gpu_iprscan
     val batch_size
+    val max_jobs_per_analysis
 
     output:
     val cpuJobs
@@ -167,19 +193,21 @@ process BUILD_JOBS {
                     batch.seqCount, batch.upiFrom, batch.upiTo
                 )
 
-                (job.gpu ? gpuJobs : cpuJobs) << batchJob
+                if (max_jobs_per_analysis <= 0 || jobsByAnalysis[job.analysisId].size() < max_jobs_per_analysis) {
+                    (job.gpu ? gpuJobs : cpuJobs) << batchJob
 
-                jobRecords.add(
-                    [
-                        batchJob.analysisId,
-                        batchJob.upiFrom,
-                        batchJob.upiTo,
-                        java.sql.Timestamp.valueOf(batchJob.createdTime),
-                        batchJob.seqCount
-                    ]
-                )
+                    jobRecords.add(
+                        [
+                            batchJob.analysisId,
+                            batchJob.upiFrom,
+                            batchJob.upiTo,
+                            java.sql.Timestamp.valueOf(batchJob.createdTime),
+                            batchJob.seqCount
+                        ]
+                    )
 
-                jobsByAnalysis[job.analysisId] << [job: job, batch: batch]
+                    jobsByAnalysis[job.analysisId] << [job: job, batch: batch]
+                }
             }
         }
     }
